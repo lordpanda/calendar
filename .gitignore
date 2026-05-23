@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Xcode build artifacts
+DerivedData/
+build/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+
+# Swift Package Manager
+.build/
+Package.resolved
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# Archives and symbol files
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcarchive
+
+# Local environment files
+.env
+.env.*

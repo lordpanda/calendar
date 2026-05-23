@@ -3,15 +3,15 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		07589B4574D2E0DBCC6277A8 /* CalendarTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C9B592659D1C55FAD21757 /* CalendarTheme.swift */; };
-		1DF6BCA11B640DCD6E4FE09A /* SampleCalendarData.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB6FEEB810A41D511B8967EF /* SampleCalendarData.swift */; };
 		383F3DF049CB0B5BDCBA64AB /* BottomFloatingBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37467D0FAF52E2D41D1B0C1A /* BottomFloatingBar.swift */; };
 		3BC614A5ECC5564089549217 /* CalendarDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B954FF6ECAE840EEEA12887B /* CalendarDrawerView.swift */; };
 		5EF0B06111EFB16449A58BCB /* DayScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C1EC1E9155492DF1E61662 /* DayScheduleView.swift */; };
+		950C41634B3660A4CF82A4D2 /* EventKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203643B21D846936D1D398E7 /* EventKitService.swift */; };
 		A5FE55D83F4D91C43E7748FC /* MonthScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9060AF03A41B227E81C10601 /* MonthScrollView.swift */; };
 		B58EE7CD4D9C96E794C98BCB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4567A84538C180727EC7247 /* Assets.xcassets */; };
 		D48302648FA3791C2BC958D9 /* CalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23DF451BA2C0B2D86AF30828 /* CalendarViewModel.swift */; };
@@ -23,14 +23,14 @@
 /* Begin PBXFileReference section */
 		08C1EC1E9155492DF1E61662 /* DayScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayScheduleView.swift; sourceTree = "<group>"; };
 		14C9B592659D1C55FAD21757 /* CalendarTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTheme.swift; sourceTree = "<group>"; };
-		1E6AA1C16D5AAE616B599B46 /* Calendar.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Calendar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1E6AA1C16D5AAE616B599B46 /* Calendar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Calendar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		203643B21D846936D1D398E7 /* EventKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitService.swift; sourceTree = "<group>"; };
 		23DF451BA2C0B2D86AF30828 /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
 		37467D0FAF52E2D41D1B0C1A /* BottomFloatingBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomFloatingBar.swift; sourceTree = "<group>"; };
 		8C409AE44311035AD5740FC3 /* CalendarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarModels.swift; sourceTree = "<group>"; };
 		9060AF03A41B227E81C10601 /* MonthScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthScrollView.swift; sourceTree = "<group>"; };
 		B954FF6ECAE840EEEA12887B /* CalendarDrawerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDrawerView.swift; sourceTree = "<group>"; };
 		D4567A84538C180727EC7247 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		DB6FEEB810A41D511B8967EF /* SampleCalendarData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleCalendarData.swift; sourceTree = "<group>"; };
 		F1545805F509066997BE9EFF /* CalendarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarApp.swift; sourceTree = "<group>"; };
 		FA39E749BC96455092AACA52 /* CalendarRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarRootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -40,9 +40,16 @@
 			isa = PBXGroup;
 			children = (
 				23DF451BA2C0B2D86AF30828 /* CalendarViewModel.swift */,
-				DB6FEEB810A41D511B8967EF /* SampleCalendarData.swift */,
 			);
 			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		3CB1D75B963057082F094576 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				203643B21D846936D1D398E7 /* EventKitService.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		504A466D37423A1DE6051F4C /* Products */ = {
@@ -104,6 +111,7 @@
 				7E2640CE1727AF80BD26CD46 /* Design */,
 				635149E48CEA8FF93826DB7C /* Models */,
 				DD872B5EC8746D36CA8454EB /* Resources */,
+				3CB1D75B963057082F094576 /* Services */,
 				20B0714F1392E06E79DF7C36 /* ViewModels */,
 				76DBD4B49734D93432FDE3AF /* Views */,
 			);
@@ -158,7 +166,6 @@
 			);
 			mainGroup = 99FE590CF614FD3B1BC235A0;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -191,8 +198,8 @@
 				07589B4574D2E0DBCC6277A8 /* CalendarTheme.swift in Sources */,
 				D48302648FA3791C2BC958D9 /* CalendarViewModel.swift in Sources */,
 				5EF0B06111EFB16449A58BCB /* DayScheduleView.swift in Sources */,
+				950C41634B3660A4CF82A4D2 /* EventKitService.swift in Sources */,
 				A5FE55D83F4D91C43E7748FC /* MonthScrollView.swift in Sources */,
-				1DF6BCA11B640DCD6E4FE09A /* SampleCalendarData.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -205,6 +212,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 2CFSFK9M49;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendar;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Calendar needs full calendar access to sync and edit iCloud events.";
@@ -353,6 +361,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 2CFSFK9M49;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendar;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Calendar needs full calendar access to sync and edit iCloud events.";
