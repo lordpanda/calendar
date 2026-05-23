@@ -1,8 +1,9 @@
 import SwiftUI
 
 enum CalendarTheme {
-    static let background = Color(.systemGroupedBackground)
-    static let cellBackground = Color(.secondarySystemGroupedBackground)
+    static let background = Color(.systemBackground)
+    static let secondaryBackground = Color(.secondarySystemBackground)
+    static let separator = Color(.separator).opacity(0.42)
     static let glassStroke = Color.white.opacity(0.35)
 }
 
