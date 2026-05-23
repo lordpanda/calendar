@@ -11,19 +11,28 @@ struct CalendarRootView: View {
                 MonthScrollView(
                     viewModel: viewModel,
                     selectedDay: $selectedDay,
-                    isDrawerPresented: $isDrawerPresented
+                    isDrawerPresented: $isDrawerPresented,
+                    onRequestAccess: {
+                        Task {
+                            await viewModel.requestCalendarAccess()
+                        }
+                    }
                 )
 
                 BottomFloatingBar(
                     onToday: { viewModel.scrollToTodayTrigger += 1 },
                     onAdd: {
                         selectedDay = viewModel.day(for: Date())
-                    }
+                    },
+                    isAddEnabled: viewModel.hasWritableCalendars
                 )
                 .padding(.horizontal, 20)
                 .padding(.bottom, 18)
             }
             .background(CalendarTheme.background.ignoresSafeArea())
+            .task {
+                await viewModel.loadInitialData()
+            }
             .sheet(item: $selectedDay) { day in
                 DayScheduleView(
                     date: day.date,
@@ -35,7 +44,10 @@ struct CalendarRootView: View {
                 .presentationBackground(.thinMaterial)
             }
             .sheet(isPresented: $isDrawerPresented) {
-                CalendarDrawerView(calendars: viewModel.calendarSources)
+                CalendarDrawerView(
+                    calendars: viewModel.calendarSources,
+                    accessState: viewModel.accessState
+                )
                     .presentationDetents([.medium, .large])
                     .presentationBackground(.thinMaterial)
             }
