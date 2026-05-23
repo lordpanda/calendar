@@ -1,21 +1,89 @@
 import Foundation
 
 @Observable
+@MainActor
 final class CalendarViewModel {
+    enum LoadState: Equatable {
+        case idle
+        case loading
+        case loaded
+        case failed(String)
+    }
+
     var visibleYear: Int
     var scrollToTodayTrigger = 0
     var months: [CalendarMonth] = []
     var events: [CalendarEvent] = []
     var calendarSources: [CalendarSource] = []
+    var accessState: EventKitService.AccessState = .notDetermined
+    var loadState: LoadState = .idle
 
     private let calendar: Calendar
+    private let eventKitService: EventKitService
 
-    init(calendar: Calendar = .current) {
+    init(
+        calendar: Calendar = .current,
+        eventKitService: EventKitService = EventKitService()
+    ) {
         self.calendar = calendar
+        self.eventKitService = eventKitService
         visibleYear = calendar.component(.year, from: Date())
-        calendarSources = SampleCalendarData.sources
-        events = SampleCalendarData.events(calendars: calendarSources, calendar: calendar)
         months = Self.makeMonths(around: Date(), calendar: calendar)
+        accessState = eventKitService.currentAccessState()
+    }
+
+    var hasConnectedCalendars: Bool {
+        !calendarSources.isEmpty
+    }
+
+    var hasWritableCalendars: Bool {
+        calendarSources.contains { $0.isWritable }
+    }
+
+    var statusMessage: String {
+        switch accessState {
+        case .notDetermined:
+            return "Calendar access has not been requested yet."
+        case .denied:
+            return "Calendar access was denied. Enable access in Settings to load local calendars."
+        case .restricted:
+            return "Calendar access is restricted on this device."
+        case .writeOnly:
+            return "Only write-only calendar access is available, so existing events cannot be read."
+        case .unknown:
+            return "Calendar authorization state is unknown."
+        case .granted:
+            if calendarSources.isEmpty {
+                return "No local calendars are currently available."
+            }
+            return "Connected to local calendars through EventKit."
+        }
+    }
+
+    func loadInitialData() async {
+        accessState = eventKitService.currentAccessState()
+
+        if accessState == .granted {
+            await reloadCalendarsAndEvents()
+        }
+    }
+
+    func requestCalendarAccess() async {
+        loadState = .loading
+
+        do {
+            accessState = try await eventKitService.requestAccess()
+
+            if accessState == .granted {
+                await reloadCalendarsAndEvents()
+            } else {
+                calendarSources = []
+                events = []
+                loadState = .loaded
+            }
+        } catch {
+            loadState = .failed(error.localizedDescription)
+        }
     }
 
     func updateVisibleYear(for month: CalendarMonth) {
@@ -46,6 +114,27 @@ final class CalendarViewModel {
             monthDate: calendar.dateInterval(of: .month, for: date)?.start ?? date,
             isInDisplayedMonth: true
         )
+    }
+
+    private func reloadCalendarsAndEvents() async {
+        loadState = .loading
+        let calendars = eventKitService.fetchCalendars()
+        let interval = visibleDateInterval()
+
+        calendarSources = calendars
+        events = eventKitService.fetchEvents(in: interval, calendars: calendars)
+        loadState = .loaded
+    }
+
+    private func visibleDateInterval() -> DateInterval {
+        guard let firstMonth = months.first?.date,
+              let lastMonth = months.last?.date,
+              let intervalEnd = calendar.date(byAdding: .month, value: 1, to: lastMonth) else {
+            let now = Date()
+            return DateInterval(start: now, duration: 60 * 60 * 24 * 365)
+        }
+
+        return DateInterval(start: firstMonth, end: intervalEnd)
     }
 
     private static func makeMonths(around date: Date, calendar: Calendar) -> [CalendarMonth] {
