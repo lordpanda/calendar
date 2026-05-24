@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "캘린더";
+"NSCalendarsFullAccessUsageDescription" = "현재 기기의 Apple 캘린더를 동기화하고 편집하려면 캘린더 전체 접근 권한이 필요합니다.";
+"NSCalendarsUsageDescription" = "이벤트를 표시하고 관리하려면 캘린더 접근 권한이 필요합니다.";
+"NSRemindersFullAccessUsageDescription" = "캘린더 이벤트와 함께 미리 알림을 표시하려면 미리 알림 접근 권한이 필요합니다.";
+"NSRemindersUsageDescription" = "캘린더 이벤트와 함께 미리 알림을 표시하려면 미리 알림 접근 권한이 필요합니다.";

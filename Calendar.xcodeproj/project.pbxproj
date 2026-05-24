@@ -10,8 +10,13 @@
 		07589B4574D2E0DBCC6277A8 /* CalendarTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C9B592659D1C55FAD21757 /* CalendarTheme.swift */; };
 		383F3DF049CB0B5BDCBA64AB /* BottomFloatingBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37467D0FAF52E2D41D1B0C1A /* BottomFloatingBar.swift */; };
 		3BC614A5ECC5564089549217 /* CalendarDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B954FF6ECAE840EEEA12887B /* CalendarDrawerView.swift */; };
+		3FCA8770D2AC4892A8ED6902 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FCA876FD2AC4892A8ED6902 /* Localization.swift */; };
 		4F1AD0B8058FB2EE47815837 /* EventEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114CEB7FB8BBCE7AEC287644 /* EventEditView.swift */; };
 		5EF0B06111EFB16449A58BCB /* DayScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C1EC1E9155492DF1E61662 /* DayScheduleView.swift */; };
+		6D25F7D7F1B542CDA14592F2 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6D25F7D5F1B542CDA14592F2 /* Localizable.strings */; };
+		6D25F7D8F1B542CDA14592F2 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6D25F7D6F1B542CDA14592F2 /* Localizable.strings */; };
+		6D25F7DBF1B542CDA14592F2 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6D25F7D9F1B542CDA14592F2 /* InfoPlist.strings */; };
+		6D25F7DCF1B542CDA14592F2 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6D25F7DAF1B542CDA14592F2 /* InfoPlist.strings */; };
 		950C41634B3660A4CF82A4D2 /* EventKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203643B21D846936D1D398E7 /* EventKitService.swift */; };
 		A5FE55D83F4D91C43E7748FC /* MonthScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9060AF03A41B227E81C10601 /* MonthScrollView.swift */; };
 		B58EE7CD4D9C96E794C98BCB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4567A84538C180727EC7247 /* Assets.xcassets */; };
@@ -35,7 +40,12 @@
 		203643B21D846936D1D398E7 /* EventKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitService.swift; sourceTree = "<group>"; };
 		23DF451BA2C0B2D86AF30828 /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
 		37467D0FAF52E2D41D1B0C1A /* BottomFloatingBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomFloatingBar.swift; sourceTree = "<group>"; };
+		3FCA876FD2AC4892A8ED6902 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		479B22C40E6B32F3C18A6826 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		6D25F7D5F1B542CDA14592F2 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		6D25F7D6F1B542CDA14592F2 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = ko.lproj/Localizable.strings; sourceTree = "<group>"; };
+		6D25F7D9F1B542CDA14592F2 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		6D25F7DAF1B542CDA14592F2 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = ko.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		7DFFDE1C2D1A117FB13A3B5F /* GoogleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarService.swift; sourceTree = "<group>"; };
 		8C409AE44311035AD5740FC3 /* CalendarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarModels.swift; sourceTree = "<group>"; };
 		9060AF03A41B227E81C10601 /* MonthScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthScrollView.swift; sourceTree = "<group>"; };
@@ -96,6 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				8C409AE44311035AD5740FC3 /* CalendarModels.swift */,
+				3FCA876FD2AC4892A8ED6902 /* Localization.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -158,6 +169,10 @@
 				D4567A84538C180727EC7247 /* Assets.xcassets */,
 				0DF5C187AF8D4070B4056311 /* GoogleOAuthClient.plist */,
 				0F87E96180514B84A54CF80B /* Info.plist */,
+				6D25F7D5F1B542CDA14592F2 /* Localizable.strings */,
+				6D25F7D6F1B542CDA14592F2 /* Localizable.strings */,
+				6D25F7D9F1B542CDA14592F2 /* InfoPlist.strings */,
+				6D25F7DAF1B542CDA14592F2 /* InfoPlist.strings */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -201,6 +216,7 @@
 			knownRegions = (
 				Base,
 				en,
+				ko,
 			);
 			mainGroup = 99FE590CF614FD3B1BC235A0;
 			minimizedProjectReferenceProxies = 1;
@@ -222,6 +238,10 @@
 			files = (
 				B58EE7CD4D9C96E794C98BCB /* Assets.xcassets in Resources */,
 				B9D16E3B7A8C43A68C0F5A41 /* GoogleOAuthClient.plist in Resources */,
+				6D25F7D7F1B542CDA14592F2 /* Localizable.strings in Resources */,
+				6D25F7D8F1B542CDA14592F2 /* Localizable.strings in Resources */,
+				6D25F7DBF1B542CDA14592F2 /* InfoPlist.strings in Resources */,
+				6D25F7DCF1B542CDA14592F2 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -245,6 +265,7 @@
 				950C41634B3660A4CF82A4D2 /* EventKitService.swift in Sources */,
 				E6428F633043B551C6AABBC5 /* GoogleCalendarService.swift in Sources */,
 				A5FE55D83F4D91C43E7748FC /* MonthScrollView.swift in Sources */,
+				3FCA8770D2AC4892A8ED6902 /* Localization.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

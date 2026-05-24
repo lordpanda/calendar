@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "Calendar";
+"NSCalendarsFullAccessUsageDescription" = "Calendar needs full calendar access to sync and edit Apple calendars on this device.";
+"NSCalendarsUsageDescription" = "Calendar needs access to show and manage your events.";
+"NSRemindersFullAccessUsageDescription" = "Calendar needs reminder access to show your reminders alongside calendar events.";
+"NSRemindersUsageDescription" = "Calendar needs access to show your reminders alongside calendar events.";

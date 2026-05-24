@@ -1,6 +1,10 @@
 name: Calendar
 options:
   bundleIdPrefix: com.panda
+  developmentLanguage: en
+  knownRegions:
+    - en
+    - ko
   deploymentTarget:
     iOS: "26.0"
   xcodeVersion: "26.0"
