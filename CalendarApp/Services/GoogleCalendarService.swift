@@ -11,20 +11,22 @@ final class GoogleCalendarService {
     }
 
     private let calendarScope = "https://www.googleapis.com/auth/calendar"
+    private let tasksScope = "https://www.googleapis.com/auth/tasks"
+    private let googleTaskListIDPrefix = "google-tasks:"
 
     var authState: AuthState {
         configureSignInIfPossible()
 
         if let user = GIDSignIn.sharedInstance.currentUser {
-            return .signedIn(email: user.profile?.email ?? "Google Account")
+            return .signedIn(email: user.profile?.email ?? L.tr("Google Account", language: .system))
         }
 
         if clientID == nil {
-            return .unavailable("Google OAuth client ID is not configured.")
+            return .unavailable(L.tr("Google OAuth client ID is not configured.", language: .system))
         }
 
         if !hasCallbackURLScheme {
-            return .unavailable("Google callback URL scheme is not configured.")
+            return .unavailable(L.tr("Google callback URL scheme is not configured.", language: .system))
         }
 
         return .signedOut
@@ -45,7 +47,7 @@ final class GoogleCalendarService {
             throw NSError(
                 domain: "GoogleCalendarService",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Missing GIDClientID in Info.plist."]
+                userInfo: [NSLocalizedDescriptionKey: L.tr("Missing GIDClientID in Info.plist.", language: .system)]
             )
         }
 
@@ -53,7 +55,7 @@ final class GoogleCalendarService {
             throw NSError(
                 domain: "GoogleCalendarService",
                 code: 4,
-                userInfo: [NSLocalizedDescriptionKey: "Missing reversed Google client ID URL scheme in Info.plist."]
+                userInfo: [NSLocalizedDescriptionKey: L.tr("Missing reversed Google client ID URL scheme in Info.plist.", language: .system)]
             )
         }
 
@@ -61,7 +63,7 @@ final class GoogleCalendarService {
         _ = try await GIDSignIn.sharedInstance.signIn(
             withPresenting: presentingViewController,
             hint: nil,
-            additionalScopes: [calendarScope]
+            additionalScopes: [calendarScope, tasksScope]
         )
     }
 
@@ -102,7 +104,7 @@ final class GoogleCalendarService {
             items.insert(primary, at: 0)
         }
 
-        return items.map { item in
+        let calendarSources = items.map { item in
             CalendarSource(
                 id: item.id,
                 provider: .google,
@@ -115,6 +117,15 @@ final class GoogleCalendarService {
                 isWritable: item.accessRole != "reader" && item.accessRole != "freeBusyReader"
             )
         }
+
+        let taskSources: [CalendarSource]
+        do {
+            taskSources = try await fetchTaskLists()
+        } catch {
+            print("Google Tasks lists fetch failed: \(error.localizedDescription)")
+            taskSources = []
+        }
+        return calendarSources + taskSources
     }
 
     private func fetchPrimaryCalendar() async throws -> GoogleCalendarListItem {
@@ -125,12 +136,16 @@ final class GoogleCalendarService {
         return try JSONDecoder().decode(GoogleCalendarListItem.self, from: data)
     }
 
-    func fetchEvents(in interval: DateInterval, calendars: [CalendarSource]) async throws -> [CalendarEvent] {
+    func fetchEvents(
+        in interval: DateInterval,
+        calendars: [CalendarSource],
+        showsCompletedTasks: Bool = true
+    ) async throws -> [CalendarEvent] {
         var result: [CalendarEvent] = []
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
-        for calendar in calendars where calendar.isVisible {
+        for calendar in calendars where calendar.isVisible && calendar.kind == .event {
             var pageToken: String?
 
             repeat {
@@ -162,7 +177,7 @@ final class GoogleCalendarService {
                         id: item.id,
                         calendarID: calendar.id,
                         kind: .event,
-                        title: item.summary?.isEmpty == false ? item.summary! : "Untitled",
+                        title: item.summary?.isEmpty == false ? item.summary! : L.tr("Untitled", language: .system),
                         location: item.location,
                         notes: item.description,
                         startDate: start,
@@ -180,7 +195,125 @@ final class GoogleCalendarService {
             } while pageToken != nil
         }
 
+        do {
+            let taskEvents = try await fetchTasks(
+                in: interval,
+                taskLists: calendars.filter { $0.isVisible && $0.kind == .reminder },
+                showsCompletedTasks: showsCompletedTasks
+            )
+            result.append(contentsOf: taskEvents)
+        } catch {
+            print("Google Tasks fetch failed: \(error.localizedDescription)")
+        }
+
         return result.sorted { $0.startDate < $1.startDate }
+    }
+
+    private func fetchTaskLists() async throws -> [CalendarSource] {
+        var pageToken: String?
+        var items: [GoogleTaskListItem] = []
+
+        repeat {
+            var queryItems = [
+                URLQueryItem(name: "maxResults", value: "100")
+            ]
+
+            if let pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
+
+            let data = try await authorizedRequest(
+                baseURLString: "https://tasks.googleapis.com/tasks/v1",
+                path: "/users/@me/lists",
+                queryItems: queryItems
+            )
+
+            let response = try JSONDecoder().decode(GoogleTaskListsResponse.self, from: data)
+            items.append(contentsOf: response.items ?? [])
+            pageToken = response.nextPageToken
+        } while pageToken != nil
+
+        return items.map { item in
+            CalendarSource(
+                id: taskSourceID(for: item.id),
+                provider: .google,
+                kind: .reminder,
+                title: item.title.isEmpty ? L.tr("Google Tasks", language: .system) : item.title,
+                titleOverride: nil,
+                colorHex: "FF9500",
+                colorOverrideHex: nil,
+                isVisible: true,
+                isWritable: true
+            )
+        }
+    }
+
+    private func fetchTasks(
+        in interval: DateInterval,
+        taskLists: [CalendarSource],
+        showsCompletedTasks: Bool
+    ) async throws -> [CalendarEvent] {
+        var result: [CalendarEvent] = []
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        for taskList in taskLists {
+            guard let taskListID = taskListID(from: taskList.id) else { continue }
+            var pageToken: String?
+
+            repeat {
+                var queryItems = [
+                    URLQueryItem(name: "maxResults", value: "100"),
+                    URLQueryItem(name: "showCompleted", value: showsCompletedTasks ? "true" : "false"),
+                    URLQueryItem(name: "showDeleted", value: "false"),
+                    URLQueryItem(name: "showHidden", value: "true"),
+                    URLQueryItem(name: "showAssigned", value: "true"),
+                    URLQueryItem(name: "dueMin", value: formatter.string(from: interval.start)),
+                    URLQueryItem(name: "dueMax", value: formatter.string(from: interval.end))
+                ]
+
+                if let pageToken {
+                    queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+                }
+
+                let data = try await authorizedRequest(
+                    baseURLString: "https://tasks.googleapis.com/tasks/v1",
+                    path: "/lists/\(taskListID.urlPathEncoded)/tasks",
+                    queryItems: queryItems
+                )
+
+                let response = try JSONDecoder().decode(GoogleTasksResponse.self, from: data)
+                result.append(contentsOf: (response.items ?? []).compactMap { item in
+                    guard item.deleted != true,
+                          showsCompletedTasks || item.status != "completed",
+                          let dueDate = item.dueDate else {
+                        return nil
+                    }
+
+                    let isAllDay = !item.dueIncludesTime
+                    let startDate = isAllDay ? Calendar.current.startOfDay(for: dueDate) : dueDate
+                    let endDate = isAllDay
+                        ? Calendar.current.date(byAdding: .day, value: 1, to: startDate) ?? startDate.addingTimeInterval(86400)
+                        : dueDate.addingTimeInterval(60 * 30)
+
+                    return CalendarEvent(
+                        id: "google-task:\(taskListID):\(item.id)",
+                        calendarID: taskList.id,
+                        kind: .reminder,
+                        title: item.title?.isEmpty == false ? item.title! : L.tr("Untitled Reminder", language: .system),
+                        location: nil,
+                        notes: item.notes,
+                        startDate: startDate,
+                        endDate: endDate,
+                        isAllDay: isAllDay,
+                        isCompleted: item.status == "completed"
+                    )
+                })
+                pageToken = response.nextPageToken
+            } while pageToken != nil
+        }
+
+        return result
     }
 
     func createEvent(
@@ -199,7 +332,7 @@ final class GoogleCalendarService {
         availability: EventAvailabilityOption = .busy
     ) async throws {
         let payload = GoogleCreateEventRequest(
-            summary: title.isEmpty ? "Untitled" : title,
+            summary: title.isEmpty ? L.tr("Untitled", language: .system) : title,
             location: location,
             description: notes,
             start: .init(date: isAllDay ? DateFormatter.googleCalendarDay.string(from: startDate) : nil,
@@ -242,7 +375,7 @@ final class GoogleCalendarService {
         availability: EventAvailabilityOption = .busy
     ) async throws {
         let payload = GoogleCreateEventRequest(
-            summary: title.isEmpty ? "Untitled" : title,
+            summary: title.isEmpty ? L.tr("Untitled", language: .system) : title,
             location: location,
             description: notes,
             start: .init(date: isAllDay ? DateFormatter.googleCalendarDay.string(from: startDate) : nil,
@@ -276,19 +409,92 @@ final class GoogleCalendarService {
         )
     }
 
+    func createTask(
+        title: String,
+        dueDate: Date,
+        isAllDay: Bool,
+        calendarID: String,
+        notes: String? = nil
+    ) async throws {
+        guard let taskListID = taskListID(from: calendarID) else {
+            throw NSError(domain: "GoogleCalendarService", code: 5, userInfo: [NSLocalizedDescriptionKey: L.tr("Google task could not be found.", language: .system)])
+        }
+
+        let payload = GoogleUpdateTaskRequest(
+            title: title.isEmpty ? L.tr("Untitled Reminder", language: .system) : title,
+            notes: notes,
+            due: googleTaskDueString(from: dueDate, isAllDay: isAllDay),
+            status: nil
+        )
+        let body = try JSONEncoder().encode(payload)
+
+        _ = try await authorizedRequest(
+            baseURLString: "https://tasks.googleapis.com/tasks/v1",
+            path: "/lists/\(taskListID.urlPathEncoded)/tasks",
+            queryItems: [],
+            method: "POST",
+            body: body
+        )
+    }
+
+    func updateTask(
+        eventID: String,
+        title: String,
+        dueDate: Date,
+        isAllDay: Bool,
+        notes: String? = nil
+    ) async throws {
+        let identity = try taskIdentity(fromEventID: eventID)
+        let payload = GoogleUpdateTaskRequest(
+            title: title.isEmpty ? L.tr("Untitled Reminder", language: .system) : title,
+            notes: notes,
+            due: googleTaskDueString(from: dueDate, isAllDay: isAllDay),
+            status: nil
+        )
+        let body = try JSONEncoder().encode(payload)
+
+        _ = try await authorizedRequest(
+            baseURLString: "https://tasks.googleapis.com/tasks/v1",
+            path: "/lists/\(identity.taskListID.urlPathEncoded)/tasks/\(identity.taskID.urlPathEncoded)",
+            queryItems: [],
+            method: "PATCH",
+            body: body
+        )
+    }
+
+    func setTaskCompletion(eventID: String, isCompleted: Bool) async throws {
+        let identity = try taskIdentity(fromEventID: eventID)
+        let payload = GoogleUpdateTaskRequest(
+            title: nil,
+            notes: nil,
+            due: nil,
+            status: isCompleted ? "completed" : "needsAction"
+        )
+        let body = try JSONEncoder().encode(payload)
+
+        _ = try await authorizedRequest(
+            baseURLString: "https://tasks.googleapis.com/tasks/v1",
+            path: "/lists/\(identity.taskListID.urlPathEncoded)/tasks/\(identity.taskID.urlPathEncoded)",
+            queryItems: [],
+            method: "PATCH",
+            body: body
+        )
+    }
+
     private func authorizedRequest(
+        baseURLString: String = "https://www.googleapis.com/calendar/v3",
         path: String,
         queryItems: [URLQueryItem],
         method: String = "GET",
         body: Data? = nil
     ) async throws -> Data {
         guard let currentUser = GIDSignIn.sharedInstance.currentUser else {
-            throw NSError(domain: "GoogleCalendarService", code: 2, userInfo: [NSLocalizedDescriptionKey: "No signed-in Google user."])
+            throw NSError(domain: "GoogleCalendarService", code: 2, userInfo: [NSLocalizedDescriptionKey: L.tr("No signed-in Google user.", language: .system)])
         }
 
         let user = try await currentUser.refreshTokensIfNeeded()
 
-        var components = URLComponents(string: "https://www.googleapis.com/calendar/v3\(path)")!
+        var components = URLComponents(string: "\(baseURLString)\(path)")!
         components.queryItems = queryItems
 
         var request = URLRequest(url: components.url!)
@@ -304,11 +510,40 @@ final class GoogleCalendarService {
             throw NSError(
                 domain: "GoogleCalendarService",
                 code: 3,
-                userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? "Google Calendar API request failed."]
+                userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? L.tr("Google Calendar API request failed.", language: .system)]
             )
         }
 
         return data
+    }
+
+    private func taskSourceID(for taskListID: String) -> String {
+        googleTaskListIDPrefix + taskListID
+    }
+
+    private func taskListID(from sourceID: String) -> String? {
+        guard sourceID.hasPrefix(googleTaskListIDPrefix) else { return nil }
+        return String(sourceID.dropFirst(googleTaskListIDPrefix.count))
+    }
+
+    private func taskIdentity(fromEventID eventID: String) throws -> (taskListID: String, taskID: String) {
+        let prefix = "google-task:"
+        guard eventID.hasPrefix(prefix) else {
+            throw NSError(domain: "GoogleCalendarService", code: 5, userInfo: [NSLocalizedDescriptionKey: L.tr("Google task could not be found.", language: .system)])
+        }
+
+        let value = eventID.dropFirst(prefix.count)
+        let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else {
+            throw NSError(domain: "GoogleCalendarService", code: 5, userInfo: [NSLocalizedDescriptionKey: L.tr("Google task could not be found.", language: .system)])
+        }
+
+        return (parts[0], parts[1])
+    }
+
+    private func googleTaskDueString(from date: Date, isAllDay: Bool) -> String {
+        let dueDate = isAllDay ? Calendar.current.startOfDay(for: date) : date
+        return makeGoogleDateTimeFormatter().string(from: dueDate)
     }
 
     private var clientID: String? {
@@ -500,13 +735,59 @@ private struct GoogleCalendarEventItem: Decodable {
     let transparency: String?
 }
 
+private struct GoogleTaskListsResponse: Decodable {
+    let nextPageToken: String?
+    let items: [GoogleTaskListItem]?
+}
+
+private struct GoogleTaskListItem: Decodable {
+    let id: String
+    let title: String
+}
+
+private struct GoogleTasksResponse: Decodable {
+    let nextPageToken: String?
+    let items: [GoogleTaskItem]?
+}
+
+private struct GoogleUpdateTaskRequest: Encodable {
+    let title: String?
+    let notes: String?
+    let due: String?
+    let status: String?
+}
+
+private struct GoogleTaskItem: Decodable {
+    let id: String
+    let title: String?
+    let notes: String?
+    let due: String?
+    let status: String?
+    let deleted: Bool?
+    let hidden: Bool?
+
+    var dueDate: Date? {
+        guard let due else { return nil }
+        return DateFormatter.googleTaskDue.date(from: due)
+            ?? ISO8601DateFormatter.googleDate(from: due)
+            ?? ISO8601DateFormatter.googleFractionalDate(from: due)
+    }
+
+    var dueIncludesTime: Bool {
+        guard let dueDate else { return false }
+        let components = Calendar(identifier: .gregorian).dateComponents(in: TimeZone(secondsFromGMT: 0)!, from: dueDate)
+        return components.hour != 0 || components.minute != 0 || components.second != 0
+    }
+}
+
 private struct GoogleEventDateValue: Decodable {
     let date: String?
     let dateTime: String?
 
     var resolvedDate: Date? {
         if let dateTime {
-            return ISO8601DateFormatter().date(from: dateTime)
+            return ISO8601DateFormatter.googleDate(from: dateTime)
+                ?? ISO8601DateFormatter.googleFractionalDate(from: dateTime)
         }
 
         if let date {
@@ -596,6 +877,29 @@ private extension DateFormatter {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+
+    static let googleTaskDue: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
+        return formatter
+    }()
+}
+
+private extension ISO8601DateFormatter {
+    static func googleDate(from value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
+    static func googleFractionalDate(from value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value)
+    }
 }
 
 
