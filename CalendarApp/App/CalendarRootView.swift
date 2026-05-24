@@ -33,11 +33,7 @@ struct CalendarRootView: View {
                     .zIndex(2)
                 } else {
                     CalendarConnectionView(
-                        selectedProvider: viewModel.selectedProvider,
-                        accessState: viewModel.accessState,
-                        googleAuthState: viewModel.googleAuthState,
                         isLoading: viewModel.loadState == .loading,
-                        statusMessage: statusMessage,
                         onChooseICloud: {
                             Task {
                                 await viewModel.requestCalendarAccess()
@@ -45,21 +41,8 @@ struct CalendarRootView: View {
                         },
                         onChooseGoogle: {
                             connectGoogle()
-                        },
-                        onConnectICloud: {
-                            Task {
-                                await viewModel.requestCalendarAccess()
-                            }
-                        },
-                        onConnectGoogle: {
-                            connectGoogle()
-                        },
-                        onOpenSettings: openSystemSettings,
-                        onBack: {
-                            viewModel.selectProvider(.none)
                         }
                     )
-                    .padding(.horizontal, 24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
@@ -154,24 +137,6 @@ struct CalendarRootView: View {
         return controller
     }
 
-    private var statusMessage: String {
-        switch viewModel.selectedProvider {
-        case .none:
-            return "Choose one provider to start."
-        case .iCloud:
-            return viewModel.statusMessage
-        case .google:
-            switch viewModel.googleAuthState {
-            case .signedOut:
-                return "Sign in with Google to load Google Calendar data."
-            case .signedIn(let email):
-                return "Signed in as \(email)."
-            case .unavailable(let message):
-                return message
-            }
-        }
-    }
-
     @ViewBuilder
     private func eventEditorView(for context: EventEditView.EventContext) -> some View {
         switch context.mode {
@@ -230,164 +195,71 @@ struct CalendarRootView: View {
 }
 
 private struct CalendarConnectionView: View {
-    let selectedProvider: CalendarViewModel.ProviderSelection
-    let accessState: EventKitService.AccessState
-    let googleAuthState: GoogleCalendarService.AuthState
     let isLoading: Bool
-    let statusMessage: String
     let onChooseICloud: () -> Void
     let onChooseGoogle: () -> Void
-    let onConnectICloud: () -> Void
-    let onConnectGoogle: () -> Void
-    let onOpenSettings: () -> Void
-    let onBack: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 0) {
             Spacer()
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Connect a calendar")
-                    .font(.largeTitle.bold())
+            Text("연동할 달력을 선택하세요.")
+                .font(.system(size: 28, weight: .bold))
+                .padding(.bottom, 24)
 
-                Text(subtitle)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
+            VStack(spacing: 12) {
+                calendarCard(
+                    title: "iCloud Calendar",
+                    description: "지금 이 기기에서 사용 중인 iCloud 캘린더, 리마인더와 연동합니다.",
+                    showSpinner: isLoading,
+                    action: onChooseICloud
+                )
 
-            if selectedProvider != .none {
-                selectedProviderCard(selectedProvider)
-            } else {
-                VStack(spacing: 12) {
-                    providerButton(
-                        title: "iCloud Calendar",
-                        systemImage: "icloud",
-                        trailing: "Available",
-                        action: onChooseICloud
-                    )
-
-                    providerButton(
-                        title: "Google Calendar",
-                        systemImage: "g.circle",
-                        trailing: "Available",
-                        action: onChooseGoogle
-                    )
-                }
+                calendarCard(
+                    title: "Google Calendar",
+                    description: "Google 계정에 로그인 후 연동합니다.",
+                    showSpinner: false,
+                    action: onChooseGoogle
+                )
             }
 
             Spacer()
+            Spacer()
         }
-        .frame(maxWidth: 520)
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var subtitle: String {
-        selectedProvider == .none
-            ? "Choose one provider to start."
-            : "Continue with the selected provider."
-    }
-
-    @ViewBuilder
-    private func selectedProviderCard(_ provider: CalendarViewModel.ProviderSelection) -> some View {
-        switch provider {
-        case .iCloud:
-            VStack(alignment: .leading, spacing: 14) {
-                headerRow(title: "iCloud Calendar", systemImage: "icloud")
-
-                Text(statusMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                Button(action: onConnectICloud) {
-                    HStack {
-                        Text(accessState == .denied ? "Try Again" : "Continue with iCloud")
-                        Spacer()
-                        if isLoading {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "chevron.right")
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLoading)
-
-                if accessState == .denied || accessState == .restricted {
-                    Button("Open Settings", action: onOpenSettings)
-                        .font(.subheadline.weight(.semibold))
-                }
-
-                Button("Choose a different provider", action: onBack)
-                    .font(.subheadline.weight(.semibold))
-            }
-            .padding(20)
-            .background(CalendarTheme.secondaryBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-        case .google:
-            VStack(alignment: .leading, spacing: 14) {
-                headerRow(title: "Google Calendar", systemImage: "g.circle")
-
-                Text(statusMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                Button(action: onConnectGoogle) {
-                    HStack {
-                        Text("Continue with Google")
-                        Spacer()
-                        if isLoading {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "chevron.right")
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLoading || googleAuthState.isUnavailable)
-
-                Button("Choose a different provider", action: onBack)
-                    .font(.subheadline.weight(.semibold))
-            }
-            .padding(20)
-            .background(CalendarTheme.secondaryBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-        case .none:
-            EmptyView()
-        }
-    }
-
-    private func providerButton(
+    private func calendarCard(
         title: String,
-        systemImage: String,
-        trailing: String,
+        description: String,
+        showSpinner: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack {
-                Label(title, systemImage: systemImage)
-                Spacer()
-                Text(trailing)
-                    .font(.subheadline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 15) {
+                HStack {
+                    Text(title)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if showSpinner {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                    }
+                }
+
+                Text(description)
+                    .font(.system(size: 16))
                     .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(18)
-            .frame(maxWidth: .infinity)
-            .background(CalendarTheme.secondaryBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(CalendarTheme.secondaryBackground, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
         .buttonStyle(.plain)
-    }
-
-    private func headerRow(title: String, systemImage: String) -> some View {
-        HStack {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
-
-            Spacer()
-
-            Button("Back", action: onBack)
-                .font(.subheadline.weight(.semibold))
-        }
+        .disabled(isLoading)
     }
 }
