@@ -9,16 +9,16 @@ enum StartOfWeekOption: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
         case .system:
-            return "System Default"
+            return L.tr("System Default", language: language)
         case .sunday:
-            return "Sunday"
+            return L.tr("Sunday", language: language)
         case .monday:
-            return "Monday"
+            return L.tr("Monday", language: language)
         case .saturday:
-            return "Saturday"
+            return L.tr("Saturday", language: language)
         }
     }
 
@@ -32,6 +32,36 @@ enum StartOfWeekOption: String, CaseIterable, Codable, Identifiable {
             return 2
         case .saturday:
             return 7
+        }
+    }
+}
+
+enum MonthContentScale: String, CaseIterable, Codable, Identifiable {
+    case normal
+    case large
+    case extraLarge
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .normal:
+            return "100%"
+        case .large:
+            return "125%"
+        case .extraLarge:
+            return "150%"
+        }
+    }
+
+    var factor: CGFloat {
+        switch self {
+        case .normal:
+            return 1.0
+        case .large:
+            return 1.25
+        case .extraLarge:
+            return 1.5
         }
     }
 }
@@ -61,39 +91,39 @@ enum EventRepeatFrequency: String, CaseIterable, Codable, Hashable, Identifiable
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .daily: return "Day"
-        case .weekly: return "Week"
-        case .monthly: return "Month"
-        case .yearly: return "Year"
+        case .daily: return L.tr("Day", language: language)
+        case .weekly: return L.tr("Week", language: language)
+        case .monthly: return L.tr("Month", language: language)
+        case .yearly: return L.tr("Year", language: language)
         }
     }
 
-    var pluralTitle: String {
+    func pluralTitle(language: AppLanguage) -> String {
         switch self {
-        case .daily: return "days"
-        case .weekly: return "weeks"
-        case .monthly: return "months"
-        case .yearly: return "years"
+        case .daily: return L.tr("days", language: language)
+        case .weekly: return L.tr("weeks", language: language)
+        case .monthly: return L.tr("months", language: language)
+        case .yearly: return L.tr("years", language: language)
         }
     }
 
-    func intervalUnitTitle(interval: Int) -> String {
-        interval == 1 ? title.lowercased() : pluralTitle
+    func intervalUnitTitle(interval: Int, language: AppLanguage) -> String {
+        interval == 1 ? title(language: language).lowercased() : pluralTitle(language: language)
     }
 
-    func summarySentence(interval: Int) -> String {
+    func summarySentence(interval: Int, language: AppLanguage) -> String {
         let interval = max(1, interval)
         if interval == 1 {
             switch self {
-            case .daily: return "This event repeats every day."
-            case .weekly: return "This event repeats every week."
-            case .monthly: return "This event repeats every month."
-            case .yearly: return "This event repeats every year."
+            case .daily: return L.tr("This event repeats every day.", language: language)
+            case .weekly: return L.tr("This event repeats every week.", language: language)
+            case .monthly: return L.tr("This event repeats every month.", language: language)
+            case .yearly: return L.tr("This event repeats every year.", language: language)
             }
         }
-        return "This event repeats every \(interval) \(pluralTitle)."
+        return L.tr("This event repeats every %d %@.", language: language, interval, pluralTitle(language: language))
     }
 }
 
@@ -145,15 +175,15 @@ enum CustomRepeatWeekdayOrdinal: String, Codable, Hashable, CaseIterable {
     case nextToLast
     case last
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .first: return "first"
-        case .second: return "second"
-        case .third: return "third"
-        case .fourth: return "fourth"
-        case .fifth: return "fifth"
-        case .nextToLast: return "next to last"
-        case .last: return "last"
+        case .first: return L.tr("first", language: language)
+        case .second: return L.tr("second", language: language)
+        case .third: return L.tr("third", language: language)
+        case .fourth: return L.tr("fourth", language: language)
+        case .fifth: return L.tr("fifth", language: language)
+        case .nextToLast: return L.tr("next to last", language: language)
+        case .last: return L.tr("last", language: language)
         }
     }
 
@@ -182,18 +212,18 @@ enum CustomRepeatNthDaySelector: String, Codable, Hashable, CaseIterable {
     case friday
     case saturday
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .day: return "day"
-        case .weekday: return "weekday"
-        case .weekendDay: return "weekend day"
-        case .sunday: return "Sunday"
-        case .monday: return "Monday"
-        case .tuesday: return "Tuesday"
-        case .wednesday: return "Wednesday"
-        case .thursday: return "Thursday"
-        case .friday: return "Friday"
-        case .saturday: return "Saturday"
+        case .day: return L.tr("day", language: language)
+        case .weekday: return L.tr("weekday", language: language)
+        case .weekendDay: return L.tr("weekend day", language: language)
+        case .sunday: return L.tr("Sunday", language: language)
+        case .monday: return L.tr("Monday", language: language)
+        case .tuesday: return L.tr("Tuesday", language: language)
+        case .wednesday: return L.tr("Wednesday", language: language)
+        case .thursday: return L.tr("Thursday", language: language)
+        case .friday: return L.tr("Friday", language: language)
+        case .saturday: return L.tr("Saturday", language: language)
         }
     }
 
@@ -230,19 +260,19 @@ enum EventRepeatOption: Codable, Hashable, Identifiable {
         }
     }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .never: return "Never"
-        case .daily: return "Every Day"
-        case .weekly: return "Every Week"
-        case .monthly: return "Every Month"
-        case .yearly: return "Every Year"
+        case .never: return L.tr("Never", language: language)
+        case .daily: return L.tr("Every Day", language: language)
+        case .weekly: return L.tr("Every Week", language: language)
+        case .monthly: return L.tr("Every Month", language: language)
+        case .yearly: return L.tr("Every Year", language: language)
         case .custom(let rule):
             let interval = max(1, rule.interval)
             if interval == 1 {
-                return "Every \(rule.frequency.title)"
+                return L.tr("Every %@", language: language, rule.frequency.title(language: language))
             }
-            return "Every \(interval) \(rule.frequency.pluralTitle)"
+            return L.tr("Every %d %@", language: language, interval, rule.frequency.pluralTitle(language: language))
         }
     }
 
@@ -316,15 +346,15 @@ enum EventAlertOption: String, CaseIterable, Codable, Hashable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .none: return "None"
-        case .atTime: return "At time of event"
-        case .fiveMinutes: return "5 minutes before"
-        case .fifteenMinutes: return "15 minutes before"
-        case .thirtyMinutes: return "30 minutes before"
-        case .oneHour: return "1 hour before"
-        case .oneDay: return "1 day before"
+        case .none: return L.tr("None", language: language)
+        case .atTime: return L.tr("At time of event", language: language)
+        case .fiveMinutes: return L.tr("5 minutes before", language: language)
+        case .fifteenMinutes: return L.tr("15 minutes before", language: language)
+        case .thirtyMinutes: return L.tr("30 minutes before", language: language)
+        case .oneHour: return L.tr("1 hour before", language: language)
+        case .oneDay: return L.tr("1 day before", language: language)
         }
     }
 
@@ -356,12 +386,12 @@ enum EventVisibilityOption: String, CaseIterable, Codable, Hashable, Identifiabl
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .default: return "Default"
-        case .publicEvent: return "Public"
-        case .privateEvent: return "Private"
-        case .confidential: return "Confidential"
+        case .default: return L.tr("Default", language: language)
+        case .publicEvent: return L.tr("Public", language: language)
+        case .privateEvent: return L.tr("Private", language: language)
+        case .confidential: return L.tr("Confidential", language: language)
         }
     }
 }
@@ -374,12 +404,12 @@ enum EventAvailabilityOption: String, CaseIterable, Codable, Hashable, Identifia
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .busy: return "Busy"
-        case .free: return "Free"
-        case .tentative: return "Tentative"
-        case .unavailable: return "Unavailable"
+        case .busy: return L.tr("Busy", language: language)
+        case .free: return L.tr("Free", language: language)
+        case .tentative: return L.tr("Tentative", language: language)
+        case .unavailable: return L.tr("Unavailable", language: language)
         }
     }
 }
@@ -421,6 +451,7 @@ struct CalendarEvent: Identifiable, Hashable {
     var alertOption: EventAlertOption = .none
     var visibility: EventVisibilityOption = .default
     var availability: EventAvailabilityOption = .busy
+    var isCompleted: Bool = false
 
     func intersects(_ interval: DateInterval) -> Bool {
         startDate < interval.end && endDate > interval.start

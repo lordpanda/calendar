@@ -29,6 +29,8 @@ final class CalendarViewModel {
     var selectedProvider: ProviderSelection = .none
     var googleAuthState: GoogleCalendarService.AuthState = .signedOut
     var settings: CalendarAppSettings
+    var isICloudSyncInProgress = false
+    var isGoogleSyncInProgress = false
 
     private let baseCalendar: Calendar
     private var calendar: Calendar
@@ -47,9 +49,13 @@ final class CalendarViewModel {
         preferencesStore: CalendarPreferencesStore = CalendarPreferencesStore()
     ) {
         let storedState = preferencesStore.load()
-        let configuredCalendar = Self.makeConfiguredCalendar(base: calendar, startOfWeek: storedState.settings.startOfWeek)
+        var storedSettings = storedState.settings
+        if storedSettings.isICloudSyncEnabled && storedSettings.lastICloudSyncAt == nil {
+            storedSettings.isICloudSyncEnabled = false
+        }
+        let configuredCalendar = Self.makeConfiguredCalendar(base: calendar, startOfWeek: storedSettings.startOfWeek)
         let todayMonth = configuredCalendar.dateInterval(of: .month, for: Date())?.start ?? Date()
-        self.settings = storedState.settings
+        self.settings = storedSettings
         self.baseCalendar = calendar
         self.calendar = configuredCalendar
         self.eventKitService = eventKitService
@@ -92,6 +98,10 @@ final class CalendarViewModel {
         writableCalendars.filter(\.isVisible)
     }
 
+    var visibleWritableTaskCalendars: [CalendarSource] {
+        orderedCalendarSources.filter { $0.isWritable && $0.kind == .reminder && $0.isVisible }
+    }
+
     var visibleCalendarCount: Int {
         calendarSources.filter(\.isVisible).count
     }
@@ -105,30 +115,31 @@ final class CalendarViewModel {
     }
 
     var firstCalendarForNewEventsDisplayName: String {
-        visibleWritableCalendars.first?.displayTitle ?? "No visible writable calendar"
+        visibleWritableCalendars.first?.displayTitle ?? L.tr("No visible writable calendar", language: settings.language)
     }
 
     var startOfWeekSummary: String {
-        settings.startOfWeek.title
+        settings.startOfWeek.title(language: settings.language)
     }
 
     var currentMonthTitle: String {
         let formatter = DateFormatter()
         formatter.calendar = calendar
+        formatter.locale = settings.language.locale
         formatter.dateFormat = "LLLL"
         return formatter.string(from: selectedMonthID)
     }
 
     var lastICloudSyncDescription: String {
-        Self.syncDescription(for: settings.lastICloudSyncAt)
+        Self.syncDescription(for: settings.lastICloudSyncAt, language: settings.language)
     }
 
     var lastGoogleSyncDescription: String {
-        Self.syncDescription(for: settings.lastGoogleSyncAt)
+        Self.syncDescription(for: settings.lastGoogleSyncAt, language: settings.language)
     }
 
     var canRefreshICloud: Bool {
-        accessState == .granted
+        accessState == .granted || accessState == .notDetermined
     }
 
     var canRefreshGoogle: Bool {
@@ -156,20 +167,20 @@ final class CalendarViewModel {
     var statusMessage: String {
         switch accessState {
         case .notDetermined:
-            return "Calendar access has not been requested yet."
+            return L.tr("Calendar access has not been requested yet.", language: settings.language)
         case .denied:
-            return "Calendar access was denied. Enable access in Settings to load local calendars."
+            return L.tr("Calendar access was denied. Enable access in Settings to load local calendars.", language: settings.language)
         case .restricted:
-            return "Calendar access is restricted on this device."
+            return L.tr("Calendar access is restricted on this device.", language: settings.language)
         case .writeOnly:
-            return "Only write-only calendar access is available, so existing events cannot be read."
+            return L.tr("Only write-only calendar access is available, so existing events cannot be read.", language: settings.language)
         case .unknown:
-            return "Calendar authorization state is unknown."
+            return L.tr("Calendar authorization state is unknown.", language: settings.language)
         case .granted:
             if calendarSources.isEmpty {
-                return "No local calendars are currently available."
+                return L.tr("No local calendars are currently available.", language: settings.language)
             }
-            return "Connected to local calendars through EventKit."
+            return L.tr("Connected to local calendars through EventKit.", language: settings.language)
         }
     }
 
@@ -181,7 +192,7 @@ final class CalendarViewModel {
         if googleAuthState.isSignedIn {
             selectedProvider = .google
             await reloadGoogleCalendarsAndEvents()
-        } else if accessState == .granted {
+        } else if settings.isICloudSyncEnabled && accessState == .granted {
             selectedProvider = .iCloud
             await reloadCalendarsAndEvents()
             startObservingStoreChangesIfNeeded()
@@ -189,6 +200,13 @@ final class CalendarViewModel {
     }
 
     func requestCalendarAccess() async {
+        isICloudSyncInProgress = true
+        let timeoutTask = startICloudProgressTimeout()
+        defer { isICloudSyncInProgress = false }
+        defer { timeoutTask.cancel() }
+
+        settings.isICloudSyncEnabled = true
+        persistStoredState()
         selectedProvider = .iCloud
         loadState = .loading
 
@@ -209,11 +227,18 @@ final class CalendarViewModel {
         }
     }
 
+    func refreshCalendarAccessState() {
+        accessState = eventKitService.currentAccessState()
+    }
+
     func selectProvider(_ provider: ProviderSelection) {
         selectedProvider = provider
     }
 
     func connectGoogle(presentingViewController: UIViewController) async {
+        isGoogleSyncInProgress = true
+        defer { isGoogleSyncInProgress = false }
+
         selectedProvider = .google
         loadState = .loading
 
@@ -229,10 +254,13 @@ final class CalendarViewModel {
     }
 
     func disconnectGoogle() async {
+        isGoogleSyncInProgress = true
+        defer { isGoogleSyncInProgress = false }
+
         googleCalendarService.signOut()
         googleAuthState = googleCalendarService.authState
 
-        if accessState == .granted {
+        if settings.isICloudSyncEnabled && accessState == .granted {
             selectedProvider = .iCloud
             await reloadCalendarsAndEvents()
             startObservingStoreChangesIfNeeded()
@@ -245,14 +273,49 @@ final class CalendarViewModel {
     }
 
     func refreshICloudNow() async {
+        isICloudSyncInProgress = true
+        let timeoutTask = startICloudProgressTimeout()
+        defer { isICloudSyncInProgress = false }
+        defer { timeoutTask.cancel() }
+
+        settings.isICloudSyncEnabled = true
+        persistStoredState()
+        refreshCalendarAccessState()
+
+        if accessState == .notDetermined {
+            await requestCalendarAccess()
+            return
+        }
+
         guard accessState == .granted else { return }
         selectedProvider = .iCloud
         await reloadCalendarsAndEvents()
         startObservingStoreChangesIfNeeded()
     }
 
+    func disconnectICloud() {
+        isICloudSyncInProgress = true
+        defer { isICloudSyncInProgress = false }
+
+        settings.isICloudSyncEnabled = false
+        calendarSources.removeAll { $0.provider == .iCloud }
+        events.removeAll { event in
+            calendarSources.first(where: { $0.id == event.calendarID }) == nil
+        }
+        if googleAuthState.isSignedIn {
+            selectedProvider = .google
+        } else {
+            selectedProvider = .none
+            loadState = .idle
+        }
+        persistStoredState()
+    }
+
     func refreshGoogleNow() async {
         guard googleAuthState.isSignedIn else { return }
+        isGoogleSyncInProgress = true
+        defer { isGoogleSyncInProgress = false }
+
         selectedProvider = .google
         await reloadGoogleCalendarsAndEvents()
     }
@@ -316,6 +379,41 @@ final class CalendarViewModel {
         }
     }
 
+    func createTask(
+        title: String,
+        dueDate: Date,
+        isAllDay: Bool,
+        calendarID: String,
+        notes: String? = nil
+    ) async -> Bool {
+        do {
+            if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
+                try await googleCalendarService.createTask(
+                    title: title,
+                    dueDate: dueDate,
+                    isAllDay: isAllDay,
+                    calendarID: calendarID,
+                    notes: notes
+                )
+                await reloadGoogleCalendarsAndEvents()
+            } else {
+                try eventKitService.createReminder(
+                    title: title,
+                    dueDate: dueDate,
+                    isAllDay: isAllDay,
+                    calendarID: calendarID,
+                    notes: notes
+                )
+                await reloadCalendarsAndEvents()
+            }
+            return true
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            loadState = .failed(error.localizedDescription)
+            return false
+        }
+    }
+
     func updateEvent(
         eventID: String,
         title: String,
@@ -368,6 +466,60 @@ final class CalendarViewModel {
                     visibility: visibility,
                     availability: availability
                 )
+                await reloadCalendarsAndEvents()
+            }
+            return true
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            loadState = .failed(error.localizedDescription)
+            return false
+        }
+    }
+
+    func updateTask(
+        eventID: String,
+        title: String,
+        dueDate: Date,
+        isAllDay: Bool,
+        calendarID: String,
+        notes: String? = nil
+    ) async -> Bool {
+        do {
+            if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
+                try await googleCalendarService.updateTask(
+                    eventID: eventID,
+                    title: title,
+                    dueDate: dueDate,
+                    isAllDay: isAllDay,
+                    notes: notes
+                )
+                await reloadGoogleCalendarsAndEvents()
+            } else {
+                try eventKitService.updateReminder(
+                    reminderID: eventID,
+                    title: title,
+                    dueDate: dueDate,
+                    isAllDay: isAllDay,
+                    calendarID: calendarID,
+                    notes: notes
+                )
+                await reloadCalendarsAndEvents()
+            }
+            return true
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            loadState = .failed(error.localizedDescription)
+            return false
+        }
+    }
+
+    func setTaskCompletion(eventID: String, calendarID: String, isCompleted: Bool) async -> Bool {
+        do {
+            if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
+                try await googleCalendarService.setTaskCompletion(eventID: eventID, isCompleted: isCompleted)
+                await reloadGoogleCalendarsAndEvents()
+            } else {
+                try eventKitService.setReminderCompletion(reminderID: eventID, isCompleted: isCompleted)
                 await reloadCalendarsAndEvents()
             }
             return true
@@ -517,17 +669,65 @@ final class CalendarViewModel {
         persistStoredState()
     }
 
+    func setShowsCompletedTasks(_ showsCompletedTasks: Bool) {
+        guard settings.showsCompletedTasks != showsCompletedTasks else { return }
+        settings.showsCompletedTasks = showsCompletedTasks
+        persistStoredState()
+        Task {
+            await reloadEventsForVisibleInterval()
+        }
+    }
+
+    func setMonthContentScale(_ scale: MonthContentScale) {
+        guard settings.monthContentScale != scale else { return }
+        settings.monthContentScale = scale
+        persistStoredState()
+    }
+
+    func setLanguage(_ language: AppLanguage) {
+        guard settings.language != language else { return }
+        settings.language = language
+        persistStoredState()
+    }
+
+    func setUsesDeviceTimeZone(_ usesDeviceTimeZone: Bool) {
+        guard settings.usesDeviceTimeZone != usesDeviceTimeZone else { return }
+        settings.usesDeviceTimeZone = usesDeviceTimeZone
+        persistStoredState()
+    }
+
     private func reloadCalendarsAndEvents() async {
         loadState = .loading
-        let calendars = eventKitService.fetchCalendars()
+        try? await eventKitService.requestReminderAccessIfNeeded()
+        let eventKitService = eventKitService
+        let calendars = await Task.detached {
+            eventKitService.fetchCalendars()
+        }.value
         let interval = visibleDateInterval()
 
-        calendarSources = mergeLocalCalendarState(into: calendars)
+        replaceCalendarSources(for: .iCloud, with: calendars)
         normalizeCalendarOrderIfNeeded()
-        events = await eventKitService.fetchEvents(in: interval, calendars: calendars)
+        let iCloudEvents = await eventKitService.fetchEvents(
+            in: interval,
+            calendars: calendars,
+            showsCompletedTasks: settings.showsCompletedTasks
+        )
+        replaceEvents(for: .iCloud, with: iCloudEvents)
         settings.lastICloudSyncAt = Date()
         persistStoredState()
         loadState = .loaded
+    }
+
+    private func startICloudProgressTimeout() -> Task<Void, Never> {
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.isICloudSyncInProgress else { return }
+                self.isICloudSyncInProgress = false
+                self.loadState = .failed("iCloud sync timed out.")
+            }
+        }
     }
 
     private func reloadGoogleCalendarsAndEvents() async {
@@ -536,19 +736,38 @@ final class CalendarViewModel {
         do {
             let calendars = try await googleCalendarService.fetchCalendars()
             let interval = visibleDateInterval()
-            calendarSources = mergeLocalCalendarState(into: calendars)
+            replaceCalendarSources(for: .google, with: calendars)
             normalizeCalendarOrderIfNeeded()
-            events = try await googleCalendarService.fetchEvents(in: interval, calendars: calendars)
+            let googleEvents = try await googleCalendarService.fetchEvents(
+                in: interval,
+                calendars: calendars,
+                showsCompletedTasks: settings.showsCompletedTasks
+            )
+            replaceEvents(for: .google, with: googleEvents)
             googleAuthState = googleCalendarService.authState
             settings.lastGoogleSyncAt = Date()
             persistStoredState()
             loadState = .loaded
         } catch {
-            calendarSources = []
-            events = []
+            calendarSources.removeAll { $0.provider == .google }
+            events.removeAll { event in
+                calendarSources.first(where: { $0.id == event.calendarID }) == nil
+            }
             lastErrorMessage = error.localizedDescription
             loadState = .failed(error.localizedDescription)
         }
+    }
+
+    private func replaceCalendarSources(for provider: CalendarProviderKind, with calendars: [CalendarSource]) {
+        let otherCalendars = calendarSources.filter { $0.provider != provider }
+        calendarSources = mergeLocalCalendarState(into: otherCalendars + calendars)
+    }
+
+    private func replaceEvents(for provider: CalendarProviderKind, with providerEvents: [CalendarEvent]) {
+        let providerCalendarIDs = Set(calendarSources.filter { $0.provider == provider }.map(\.id))
+        events.removeAll { providerCalendarIDs.contains($0.calendarID) }
+        events.append(contentsOf: providerEvents)
+        events.sort { $0.startDate < $1.startDate }
     }
 
     private func mergeLocalCalendarState(into calendars: [CalendarSource]) -> [CalendarSource] {
@@ -635,9 +854,13 @@ final class CalendarViewModel {
         return configured
     }
 
-    private static func syncDescription(for date: Date?) -> String {
-        guard let date else { return "Never" }
-        return date.formatted(date: .abbreviated, time: .shortened)
+    private static func syncDescription(for date: Date?, language: AppLanguage) -> String {
+        guard let date else { return L.tr("Never", language: language) }
+        let formatter = DateFormatter()
+        formatter.locale = language.locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 
     private func shiftMonthWindow(to monthID: Date) {

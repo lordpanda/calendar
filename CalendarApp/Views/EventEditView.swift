@@ -34,6 +34,8 @@ struct EventEditView: View {
         var alertOption: EventAlertOption = .none
         var visibility: EventVisibilityOption = .default
         var availability: EventAvailabilityOption = .busy
+        var isCompleted = false
+        var kind: CalendarItemKind = .event
     }
 
     enum Mode {
@@ -53,9 +55,12 @@ struct EventEditView: View {
     let calendars: [CalendarSource]
     let onSave: (Draft) async -> Bool
     let onDelete: (() async -> Bool)?
+    let onToggleTaskCompletion: (() async -> Bool)?
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var language
     @State private var draft: Draft
+    @State private var itemKind: CalendarItemKind
     @State private var isSaving = false
     @State private var expandedPicker: PickerFocus?
     @State private var isMapSearchPresented = false
@@ -71,12 +76,15 @@ struct EventEditView: View {
         seedDate: Date? = nil,
         existingEvent: CalendarEvent? = nil,
         onSave: @escaping (Draft) async -> Bool,
-        onDelete: (() async -> Bool)? = nil
+        onDelete: (() async -> Bool)? = nil,
+        onToggleTaskCompletion: (() async -> Bool)? = nil
     ) {
         self.mode = mode
         self.calendars = calendars
         self.onSave = onSave
         self.onDelete = onDelete
+        self.onToggleTaskCompletion = onToggleTaskCompletion
+        _itemKind = State(initialValue: existingEvent?.kind ?? .event)
 
         if let existingEvent {
             _draft = State(initialValue: Draft(
@@ -92,12 +100,17 @@ struct EventEditView: View {
                 attachmentURL: existingEvent.attachmentURL ?? "",
                 alertOption: existingEvent.alertOption,
                 visibility: existingEvent.visibility,
-                availability: existingEvent.availability
+                availability: existingEvent.availability,
+                isCompleted: existingEvent.isCompleted,
+                kind: existingEvent.kind
             ))
         } else {
             let start = Self.defaultStartDate(seedDate: seedDate)
             let end = Calendar.current.date(byAdding: .hour, value: 1, to: start) ?? start.addingTimeInterval(3600)
-            let defaultID = calendars.first(where: { $0.id == preferredCalendarID })?.id ?? calendars.first?.id ?? ""
+            let defaultID = calendars.first(where: { $0.id == preferredCalendarID })?.id
+                ?? calendars.first(where: { $0.kind == .event })?.id
+                ?? calendars.first?.id
+                ?? ""
             _draft = State(initialValue: Draft(startDate: start, endDate: end, calendarID: defaultID))
         }
     }
@@ -108,11 +121,18 @@ struct EventEditView: View {
                 VStack(spacing: 20) {
                     titleCard
                     scheduleCard
-                    calendarSection
-                    detailsCard
-                    alertCard
+                    if !isTask {
+                        calendarSection
+                        detailsCard
+                        alertCard
+                    } else {
+                        taskNotesCard
+                    }
                     if onDelete != nil {
                         deleteCard
+                    }
+                    if isTask, onToggleTaskCompletion != nil {
+                        taskCompletionCard
                     }
                 }
                 .padding(.horizontal, 16)
@@ -122,6 +142,21 @@ struct EventEditView: View {
             .background(Color(.secondarySystemBackground).ignoresSafeArea())
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarTitleMenu {
+                if case .create = mode {
+                    Button {
+                        setItemKind(.event)
+                    } label: {
+                        Label(L.tr("Event", language: language), systemImage: itemKind == .event ? "checkmark" : "calendar")
+                    }
+
+                    Button {
+                        setItemKind(.reminder)
+                    } label: {
+                        Label(L.tr("Task", language: language), systemImage: itemKind == .reminder ? "checkmark" : "checkmark.circle")
+                    }
+                }
+            }
             .onAppear {
                 focusTitleIfNeeded()
             }
@@ -145,7 +180,9 @@ struct EventEditView: View {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.primary)
                     }
+                    .tint(.primary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(confirmButtonTitle) {
@@ -156,7 +193,9 @@ struct EventEditView: View {
                             if saved { dismiss() }
                         }
                     }
-                    .disabled(isSaving || draft.calendarID.isEmpty || !selectedCalendarIsWritable)
+                    .disabled(isSaving || draft.calendarID.isEmpty || (!isTask && !selectedCalendarIsWritable))
+                    .foregroundStyle(.primary)
+                    .tint(.primary)
                 }
             }
         }
@@ -165,8 +204,9 @@ struct EventEditView: View {
     // MARK: - Section Views
 
     private var titleCard: some View {
-        TextField("Title", text: $draft.title)
+        TextField(L.tr("Title", language: language), text: $draft.title, axis: .vertical)
             .font(.system(size: 28, weight: .bold))
+            .lineLimit(1...4)
             .focused($focusedField, equals: .title)
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -177,7 +217,7 @@ struct EventEditView: View {
     private var scheduleCard: some View {
         VStack(spacing: 0) {
             EventRow {
-                Toggle("All-day", isOn: $draft.isAllDay)
+                Toggle(L.tr("All-day", language: language), isOn: $draft.isAllDay)
                     .onChange(of: draft.isAllDay) { _, _ in
                         expandedPicker = nil
                     }
@@ -191,17 +231,19 @@ struct EventEditView: View {
                 expandedDatePicker(for: $draft.startDate, dateFocus: .startDate, timeFocus: .startTime)
             }
 
-            EventDivider()
+            if !isTask {
+                EventDivider()
 
-            VStack(spacing: 0) {
-                dateTimeRow(date: $draft.endDate, dateFocus: .endDate, timeFocus: .endTime)
+                VStack(spacing: 0) {
+                    dateTimeRow(date: $draft.endDate, dateFocus: .endDate, timeFocus: .endTime)
 
-                expandedDatePicker(for: $draft.endDate, dateFocus: .endDate, timeFocus: .endTime)
+                    expandedDatePicker(for: $draft.endDate, dateFocus: .endDate, timeFocus: .endTime)
+                }
+
+                EventDivider()
+
+                repeatRow
             }
-
-            EventDivider()
-
-            repeatRow
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -213,7 +255,7 @@ struct EventEditView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     if calendars.isEmpty {
-                        Text("No writable calendars")
+                        Text(L.tr("No writable calendars", language: language))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 4)
@@ -245,8 +287,10 @@ struct EventEditView: View {
     private var detailsCard: some View {
         VStack(spacing: 0) {
             EventRow {
-                TextField("Location", text: $draft.location)
-                Button("Map") {
+                TextField(L.tr("Location", language: language), text: $draft.location, axis: .vertical)
+                    .lineLimit(1...3)
+
+                Button(L.tr("Map", language: language)) {
                     isMapSearchPresented = true
                 }
                     .foregroundStyle(.blue)
@@ -254,11 +298,12 @@ struct EventEditView: View {
 
             EventDivider()
 
-            EventRow {
-                Text("Video Call")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button("Add") {}
+                EventRow {
+                    Text(L.tr("Video Call", language: language))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                Button(L.tr("Add", language: language)) {}
                     .foregroundStyle(.blue)
             }
 
@@ -268,10 +313,13 @@ struct EventEditView: View {
                 isInviteesPresented = true
             } label: {
                 EventRow {
-                    Text("Invitees")
+                    Text(L.tr("Invitees", language: language))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(draft.invitees.isEmpty ? "None" : "\(draft.invitees.count)")
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(draft.invitees.isEmpty ? L.tr("None", language: language) : "\(draft.invitees.count)")
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -285,10 +333,13 @@ struct EventEditView: View {
                 isAttachmentPresented = true
             } label: {
                 EventRow {
-                    Text("Attachment")
+                    Text(L.tr("Attachment", language: language))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(draft.attachmentURL.isEmpty ? "None" : "1")
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(draft.attachmentURL.isEmpty ? L.tr("None", language: language) : "1")
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -301,45 +352,65 @@ struct EventEditView: View {
         .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
     }
 
+    private var taskNotesCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L.tr("Notes", language: language))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: $draft.notes)
+                .frame(minHeight: 110)
+                .scrollContentBackground(.hidden)
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
+    }
+
     private var repeatRow: some View {
         EventRow {
-            Text("Repeat")
+            Text(L.tr("Repeat", language: language))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             Menu {
                 ForEach(EventRepeatOption.presetOptions) { option in
-                    Button(option.title) {
+                    Button(option.title(language: language)) {
                         draft.repeatOption = option
                     }
                 }
 
                 Divider()
 
-                Button("Custom...") {
+                Button(L.tr("Custom...", language: language)) {
                     isCustomRepeatPresented = true
                 }
             } label: {
                 HStack(spacing: 5) {
-                    Text(draft.repeatOption.title)
+                    Text(draft.repeatOption.title(language: language))
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundStyle(.secondary)
             }
+            .tint(.secondary)
         }
     }
 
     private var alertCard: some View {
         VStack(spacing: 0) {
-            pickerRow("Alert", selection: $draft.alertOption, values: EventAlertOption.allCases)
+            pickerRow(L.tr("Alert", language: language), selection: $draft.alertOption, values: EventAlertOption.allCases)
 
             EventDivider()
 
-            pickerRow("Visibility", selection: $draft.visibility, values: EventVisibilityOption.allCases)
+            pickerRow(L.tr("Visibility", language: language), selection: $draft.visibility, values: EventVisibilityOption.allCases)
 
             EventDivider()
 
-            pickerRow("Show As", selection: $draft.availability, values: EventAvailabilityOption.allCases)
+            pickerRow(L.tr("Show As", language: language), selection: $draft.availability, values: EventAvailabilityOption.allCases)
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -356,7 +427,27 @@ struct EventEditView: View {
                 if deleted { dismiss() }
             }
         } label: {
-            Text("Delete Event")
+            Text(isTask ? L.tr("Delete Task", language: language) : L.tr("Delete Event", language: language))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 52)
+        }
+        .disabled(isSaving)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
+    }
+
+    private var taskCompletionCard: some View {
+        Button {
+            Task {
+                guard let onToggleTaskCompletion else { return }
+                isSaving = true
+                let updated = await onToggleTaskCompletion()
+                isSaving = false
+                if updated { dismiss() }
+            }
+        } label: {
+            Text(draft.isCompleted ? L.tr("Mark Uncompleted", language: language) : L.tr("Mark Completed", language: language))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 52)
         }
@@ -377,6 +468,7 @@ struct EventEditView: View {
             } label: {
                 Text(date.wrappedValue, format: .dateTime.weekday(.wide).month().day())
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -388,6 +480,7 @@ struct EventEditView: View {
                     }
                 } label: {
                     Text(date.wrappedValue, format: .dateTime.hour().minute())
+                        .lineLimit(1)
                         .padding(.horizontal, 11)
                         .padding(.vertical, 6)
                         .background(expandedPicker == timeFocus ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemFill))
@@ -482,6 +575,8 @@ struct EventEditView: View {
         EventRow {
             Text(title)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+
             Picker(title, selection: selection) {
                 ForEach(values) { option in
                     Text(optionTitle(option)).tag(option)
@@ -489,17 +584,18 @@ struct EventEditView: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
+            .tint(.secondary)
         }
     }
 
     private func optionTitle<Option>(_ option: Option) -> String {
         switch option {
         case let option as EventAlertOption:
-            return option.title
+            return option.title(language: language)
         case let option as EventVisibilityOption:
-            return option.title
+            return option.title(language: language)
         case let option as EventAvailabilityOption:
-            return option.title
+            return option.title(language: language)
         default:
             return String(describing: option)
         }
@@ -509,20 +605,37 @@ struct EventEditView: View {
 
     private var navigationTitle: String {
         switch mode {
-        case .create: return "New Event"
-        case .edit: return "Edit Event"
+        case .create: return itemKind == .reminder ? L.tr("New Task", language: language) : L.tr("New Event", language: language)
+        case .edit: return isTask ? L.tr("Edit Task", language: language) : L.tr("Edit Event", language: language)
         }
     }
 
     private var confirmButtonTitle: String {
         switch mode {
-        case .create: return "Add"
-        case .edit: return "Save"
+        case .create: return L.tr("Add", language: language)
+        case .edit: return L.tr("Save", language: language)
         }
     }
 
     private var selectedCalendarIsWritable: Bool {
         calendars.first(where: { $0.id == draft.calendarID })?.isWritable == true
+    }
+
+    private var isTask: Bool {
+        itemKind == .reminder
+    }
+
+    private func setItemKind(_ kind: CalendarItemKind) {
+        guard case .create = mode, itemKind != kind else { return }
+        itemKind = kind
+        draft.kind = kind
+        if let calendar = calendars.first(where: { $0.kind.rawValue == kind.rawValue && $0.isVisible })
+            ?? calendars.first(where: { $0.kind.rawValue == kind.rawValue }) {
+            draft.calendarID = calendar.id
+        } else {
+            draft.calendarID = ""
+        }
+        expandedPicker = nil
     }
 
     private func scrollToSelectedCalendar(with proxy: ScrollViewProxy, animated: Bool) {
@@ -567,6 +680,14 @@ struct EventEditView: View {
 
         guard let seedDate else {
             return roundedHour
+        }
+
+        let seedTime = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: seedDate)
+        if (seedTime.hour ?? 0) != 0
+            || (seedTime.minute ?? 0) != 0
+            || (seedTime.second ?? 0) != 0
+            || (seedTime.nanosecond ?? 0) != 0 {
+            return seedDate
         }
 
         let time = calendar.dateComponents([.hour, .minute], from: roundedHour)
@@ -628,6 +749,7 @@ private struct CustomRepeatEditView: View {
     @Binding var selection: EventRepeatOption
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
+    @Environment(\.appLanguage) private var language
     @State private var customRule: CustomRepeatRule
     @State private var showsEveryPicker = false
 
@@ -678,14 +800,14 @@ private struct CustomRepeatEditView: View {
                 .padding(.vertical, 16)
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("Custom Repeat")
+            .navigationTitle(L.tr("Custom Repeat", language: language))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(L.tr("Cancel", language: language)) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(L.tr("Done", language: language)) {
                         selection = .custom(customRule)
                         dismiss()
                     }
@@ -696,11 +818,11 @@ private struct CustomRepeatEditView: View {
 
     private var frequencyRow: some View {
         HStack {
-            Text("Frequency")
+            Text(L.tr("Frequency", language: language))
             Spacer()
-            Picker("Frequency", selection: $customRule.frequency) {
+            Picker(L.tr("Frequency", language: language), selection: $customRule.frequency) {
                 ForEach(EventRepeatFrequency.allCases) { frequency in
-                    Text(frequency.title).tag(frequency)
+                    Text(frequency.title(language: language)).tag(frequency)
                 }
             }
             .labelsHidden()
@@ -717,7 +839,7 @@ private struct CustomRepeatEditView: View {
             }
         } label: {
             HStack {
-                Text("Every")
+                Text(L.tr("Every", language: language))
                 Spacer()
                 Text(customIntervalTitle)
                     .foregroundStyle(showsEveryPicker ? Color.accentColor : .primary)
@@ -741,7 +863,7 @@ private struct CustomRepeatEditView: View {
 
             Picker("", selection: $customRule.frequency) {
                 ForEach(EventRepeatFrequency.allCases) { option in
-                    Text(option.intervalUnitTitle(interval: customRule.interval)).tag(option)
+                    Text(option.intervalUnitTitle(interval: customRule.interval, language: language)).tag(option)
                 }
             }
             .pickerStyle(.wheel)
@@ -771,9 +893,9 @@ private struct CustomRepeatEditView: View {
     private var monthlySection: some View {
         roundedCard {
             VStack(spacing: 0) {
-                monthlyModeRow(title: "Each", mode: .eachDate)
+                monthlyModeRow(title: L.tr("Each", language: language), mode: .eachDate)
                 Divider().padding(.leading, 20)
-                monthlyModeRow(title: "On the...", mode: .nthWeekday)
+                monthlyModeRow(title: L.tr("On the...", language: language), mode: .nthWeekday)
                 Divider()
                 if customRule.monthlyPattern == .eachDate {
                     monthDaysGrid.padding(.top, 2)
@@ -790,7 +912,7 @@ private struct CustomRepeatEditView: View {
             roundedCard {
                 VStack(spacing: 0) {
                     HStack {
-                        Text("Days of Week")
+                        Text(L.tr("Days of Week", language: language))
                         Spacer()
                         Toggle("", isOn: $customRule.yearlyUsesWeekdays)
                             .labelsHidden()
@@ -866,7 +988,7 @@ private struct CustomRepeatEditView: View {
         HStack(spacing: 0) {
             Picker("", selection: $customRule.weekdayOrdinal) {
                 ForEach(CustomRepeatWeekdayOrdinal.allCases, id: \.self) { option in
-                    Text(option.title).tag(option)
+                    Text(option.title(language: language)).tag(option)
                 }
             }
             .pickerStyle(.wheel)
@@ -874,7 +996,7 @@ private struct CustomRepeatEditView: View {
 
             Picker("", selection: $customRule.nthDaySelector) {
                 ForEach(CustomRepeatNthDaySelector.allCases, id: \.self) { option in
-                    Text(option.title).tag(option)
+                    Text(option.title(language: language)).tag(option)
                 }
             }
             .pickerStyle(.wheel)
@@ -906,13 +1028,13 @@ private struct CustomRepeatEditView: View {
     private var customIntervalTitle: String {
         let interval = max(1, customRule.interval)
         if interval == 1 {
-            return customRule.frequency.intervalUnitTitle(interval: interval)
+            return customRule.frequency.intervalUnitTitle(interval: interval, language: language)
         }
-        return "\(interval) \(customRule.frequency.pluralTitle)"
+        return L.tr("%d %@", language: language, interval, customRule.frequency.pluralTitle(language: language))
     }
 
     private var summaryText: String {
-        customRule.frequency.summarySentence(interval: customRule.interval)
+        customRule.frequency.summarySentence(interval: customRule.interval, language: language)
     }
 
     private var selectedWeekdays: [Int] {
@@ -973,6 +1095,7 @@ private struct CustomRepeatEditView: View {
 private struct LocationSearchView: View {
     let onSelect: (String) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var language
     @StateObject private var search = LocationSearchModel()
 
     var body: some View {
@@ -993,11 +1116,11 @@ private struct LocationSearchView: View {
                     .padding(.vertical, 3)
                 }
             }
-            .navigationTitle("Location")
-            .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search maps")
+            .navigationTitle(L.tr("Location", language: language))
+            .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .always), prompt: L.tr("Search maps", language: language))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(L.tr("Cancel", language: language)) {
                         dismiss()
                     }
                 }
@@ -1017,7 +1140,7 @@ private struct LocationSearchResult: Identifiable, Hashable {
 }
 
 @MainActor
-private final class LocationSearchModel: ObservableObject {
+private final class LocationSearchModel: NSObject, ObservableObject, @preconcurrency MKLocalSearchCompleterDelegate {
     @Published var query = "" {
         didSet {
             search()
@@ -1025,13 +1148,24 @@ private final class LocationSearchModel: ObservableObject {
     }
     @Published var results: [LocationSearchResult] = []
 
+    private let completer = MKLocalSearchCompleter()
     private var searchTask: Task<Void, Never>?
+    private var fallbackTask: Task<Void, Never>?
+
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = [.address, .pointOfInterest, .query]
+        completer.region = Self.seoulSearchRegion
+    }
 
     private func search() {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
         searchTask?.cancel()
+        fallbackTask?.cancel()
         guard !term.isEmpty else {
             results = []
+            completer.queryFragment = ""
             return
         }
 
@@ -1039,30 +1173,68 @@ private final class LocationSearchModel: ObservableObject {
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
 
+            completer.queryFragment = term
+            runFallbackSearch(for: term)
+        }
+    }
+
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let mapped = completer.results.map { completion in
+            LocationSearchResult(title: completion.title, subtitle: completion.subtitle)
+        }
+
+        guard mapped.isEmpty == false else { return }
+        results = Self.deduplicated(mapped)
+    }
+
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        runFallbackSearch(for: query.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private func runFallbackSearch(for term: String) {
+        fallbackTask?.cancel()
+        guard !term.isEmpty else { return }
+
+        fallbackTask = Task {
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = term
             request.resultTypes = [.address, .pointOfInterest]
+            request.region = Self.seoulSearchRegion
 
             do {
                 let response = try await MKLocalSearch(request: request).start()
                 guard !Task.isCancelled else { return }
-                results = response.mapItems.map { item in
+                let mapped = response.mapItems.map { item in
                     LocationSearchResult(
                         title: item.name ?? term,
                         subtitle: item.placemark.title ?? ""
                     )
                 }
+                results = Self.deduplicated(results + mapped)
             } catch {
                 guard !Task.isCancelled else { return }
-                results = []
+                if results.isEmpty {
+                    results = []
+                }
             }
         }
+    }
+
+    private static let seoulSearchRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780),
+        span: MKCoordinateSpan(latitudeDelta: 1.2, longitudeDelta: 1.2)
+    )
+
+    private static func deduplicated(_ values: [LocationSearchResult]) -> [LocationSearchResult] {
+        var seen = Set<String>()
+        return values.filter { seen.insert($0.id).inserted }
     }
 }
 
 private struct InviteesEditView: View {
     @Binding var invitees: [String]
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var language
     @State private var email = ""
 
     var body: some View {
@@ -1073,16 +1245,16 @@ private struct InviteesEditView: View {
                         TextField("email@example.com", text: $email)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
-                        Button("Add") {
+                        Button(L.tr("Add", language: language)) {
                             addInvitee()
                         }
                         .disabled(normalizedEmail.isEmpty)
                     }
                 }
 
-                Section("Invitees") {
+                Section(L.tr("Invitees", language: language)) {
                     if invitees.isEmpty {
-                        Text("No invitees")
+                        Text(L.tr("No invitees", language: language))
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(invitees, id: \.self) { invitee in
@@ -1094,10 +1266,10 @@ private struct InviteesEditView: View {
                     }
                 }
             }
-            .navigationTitle("Invitees")
+            .navigationTitle(L.tr("Invitees", language: language))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(L.tr("Done", language: language)) {
                         dismiss()
                     }
                 }
@@ -1120,6 +1292,7 @@ private struct InviteesEditView: View {
 private struct AttachmentEditView: View {
     @Binding var attachmentURL: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var language
 
     var body: some View {
         NavigationStack {
@@ -1129,21 +1302,21 @@ private struct AttachmentEditView: View {
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                 } footer: {
-                    Text("Use a web or file URL. Providers may reject attachments they cannot access.")
+                    Text(L.tr("Use a web or file URL. Providers may reject attachments they cannot access.", language: language))
                 }
 
                 if !attachmentURL.isEmpty {
                     Section {
-                        Button("Remove Attachment", role: .destructive) {
+                        Button(L.tr("Remove Attachment", language: language), role: .destructive) {
                             attachmentURL = ""
                         }
                     }
                 }
             }
-            .navigationTitle("Attachment")
+            .navigationTitle(L.tr("Attachment", language: language))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(L.tr("Done", language: language)) {
                         dismiss()
                     }
                 }

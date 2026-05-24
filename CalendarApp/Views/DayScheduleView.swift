@@ -6,10 +6,11 @@ struct DayScheduleView: View {
     let colorForEvent: (CalendarEvent) -> String
     let onPreviousDay: () -> Void
     let onNextDay: () -> Void
-    let onCreateEvent: () -> Void
+    let onCreateEvent: (Date) -> Void
     let onSelectEvent: (CalendarEvent) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var language
     private let hourHeight: CGFloat = 60
 
     var body: some View {
@@ -22,6 +23,7 @@ struct DayScheduleView: View {
                         GeometryReader { geometry in
                             ZStack(alignment: .topLeading) {
                                 hourGrid
+                                hourTapTargets(availableWidth: max(0, geometry.size.width - 58))
                                 eventBlocks(availableWidth: max(0, geometry.size.width - 58))
                                 currentTimeIndicator
                                 initialScrollAnchor
@@ -50,19 +52,19 @@ struct DayScheduleView: View {
                         }
                 )
             }
-            .navigationTitle(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+            .navigationTitle(date.formatted(.dateTime.weekday(.wide).month(.wide).day().locale(language.locale)))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        onCreateEvent()
+                        onCreateEvent(date)
                     } label: {
                         Image(systemName: "plus")
                     }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") {
+                    Button(L.tr("Close", language: language)) {
                         dismiss()
                     }
                 }
@@ -81,17 +83,19 @@ struct DayScheduleView: View {
                     } label: {
                         HStack(spacing: 6) {
                             if event.kind == .reminder {
-                                Image(systemName: "checkmark.circle.fill")
+                                Image(systemName: "checkmark.circle")
                             }
 
                             Text(event.title)
                                 .font(.caption.weight(.semibold))
+                                .strikethrough(event.isCompleted, color: backgroundColor(for: event))
                         }
                         .foregroundStyle(backgroundColor(for: event))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(backgroundColor(for: event).opacity(0.18), in: Capsule())
+                        .opacity(event.isCompleted ? 0.55 : 1)
                     }
                     .buttonStyle(.plain)
                 }
@@ -127,6 +131,23 @@ struct DayScheduleView: View {
                 .frame(height: hourHeight, alignment: .top)
             }
         }
+    }
+
+    private func hourTapTargets(availableWidth: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            ForEach(0..<24, id: \.self) { hour in
+                Button {
+                    onCreateEvent(date(atHour: hour))
+                } label: {
+                    Color.clear
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(width: availableWidth, height: hourHeight)
+                .accessibilityLabel(newEventAccessibilityLabel(for: hour))
+            }
+        }
+        .offset(x: 58)
     }
 
     private func eventBlocks(availableWidth: CGFloat) -> some View {
@@ -236,6 +257,21 @@ struct DayScheduleView: View {
         let minutes = CGFloat((components.hour ?? 0) * 60 + (components.minute ?? 0))
         return max(0, min(minutes / 60 * hourHeight, hourHeight * 24))
     }
+
+    private func date(atHour hour: Int) -> Date {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
+    }
+
+    private func newEventAccessibilityLabel(for hour: Int) -> String {
+        let startDate = date(atHour: hour)
+        return L.tr(
+            "New Event at %@",
+            language: language,
+            startDate.formatted(.dateTime.hour().locale(language.locale))
+        )
+    }
 }
 
 private struct PositionedEvent: Identifiable {
@@ -258,13 +294,14 @@ private struct DayEventBlock: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
                     if event.kind == .reminder {
-                        Image(systemName: "checkmark.circle.fill")
+                        Image(systemName: "checkmark.circle")
                             .font(.caption)
                     }
 
                     Text(event.title)
                         .font(.caption.weight(.bold))
                         .lineLimit(nil)
+                        .strikethrough(event.isCompleted, color: .primary)
                 }
 
                 Text(event.startDate.formatted(.dateTime.hour().minute()))
@@ -278,6 +315,7 @@ private struct DayEventBlock: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(color.opacity(0.45), lineWidth: 1)
             }
+            .opacity(event.isCompleted ? 0.55 : 1)
         }
         .buttonStyle(.plain)
     }

@@ -24,7 +24,7 @@ struct CalendarRootView: View {
                     BottomFloatingBar(
                         onToday: { viewModel.scrollToTodayTrigger += 1 },
                         onAdd: {
-                            eventEditorContext = .create(seedDate: Date())
+                            eventEditorContext = .create(seedDate: Calendar.current.startOfDay(for: Date()))
                         },
                         isAddEnabled: viewModel.hasWritableCalendars
                     )
@@ -33,7 +33,8 @@ struct CalendarRootView: View {
                     .zIndex(2)
                 } else {
                     CalendarConnectionView(
-                        isLoading: viewModel.loadState == .loading,
+                        isAppleLoading: viewModel.isICloudSyncInProgress,
+                        isGoogleLoading: viewModel.isGoogleSyncInProgress,
                         onChooseICloud: {
                             Task {
                                 await viewModel.requestCalendarAccess()
@@ -58,11 +59,10 @@ struct CalendarRootView: View {
                     colorForEvent: { viewModel.color(for: $0) },
                     onPreviousDay: { selectedDay = viewModel.day(for: Calendar.current.date(byAdding: .day, value: -1, to: day.date) ?? day.date) },
                     onNextDay: { selectedDay = viewModel.day(for: Calendar.current.date(byAdding: .day, value: 1, to: day.date) ?? day.date) },
-                    onCreateEvent: {
-                        presentEditorAfterDismissingDay(.create(seedDate: day.date))
+                    onCreateEvent: { startDate in
+                        presentEditorAfterDismissingDay(.create(seedDate: startDate))
                     },
                     onSelectEvent: { event in
-                        guard event.kind == .event else { return }
                         presentEditorAfterDismissingDay(.edit(event))
                     }
                 )
@@ -73,14 +73,17 @@ struct CalendarRootView: View {
                 eventEditorView(for: context)
                 .presentationDetents([.large])
             }
-            .fullScreenCover(isPresented: $isDrawerPresented) {
+            .sheet(isPresented: $isDrawerPresented) {
                 CalendarDrawerView(
                     viewModel: viewModel,
                     onConnectGoogle: connectGoogle
                 )
+                .presentationDetents([.large])
             }
         }
         .tint(.accentColor)
+        .environment(\.locale, viewModel.settings.language.locale)
+        .environment(\.appLanguage, viewModel.settings.language)
     }
 
     private func connectGoogle() {
@@ -92,7 +95,7 @@ struct CalendarRootView: View {
 
     private func openEventFromCalendar(_ event: CalendarEvent) {
         guard event.kind == .event else {
-            selectedDay = viewModel.day(for: event.startDate)
+            eventEditorContext = .edit(event)
             return
         }
 
@@ -143,34 +146,19 @@ struct CalendarRootView: View {
         case .create(let seedDate):
             EventEditView(
                 mode: .create,
-                calendars: viewModel.visibleWritableCalendars,
+                calendars: viewModel.visibleWritableCalendars + viewModel.visibleWritableTaskCalendars,
                 seedDate: seedDate
             ) { draft in
-                await viewModel.createEvent(
-                    title: draft.title,
-                    startDate: draft.startDate,
-                    endDate: draft.endDate,
-                    isAllDay: draft.isAllDay,
-                    calendarID: draft.calendarID,
-                    location: draft.location.isEmpty ? nil : draft.location,
-                    notes: draft.notes.isEmpty ? nil : draft.notes,
-                    repeatOption: draft.repeatOption,
-                    invitees: draft.invitees,
-                    attachmentURL: draft.attachmentURL.isEmpty ? nil : draft.attachmentURL,
-                    alertOption: draft.alertOption,
-                    visibility: draft.visibility,
-                    availability: draft.availability
-                )
-            }
-        case .edit(let event):
-            let canModify = viewModel.isCalendarWritable(event.calendarID)
-            EventEditView(
-                mode: .edit(eventID: event.id),
-                calendars: viewModel.editableCalendars(for: event),
-                existingEvent: event,
-                onSave: { draft in
-                    await viewModel.updateEvent(
-                        eventID: event.id,
+                if draft.kind == .reminder {
+                    await viewModel.createTask(
+                        title: draft.title,
+                        dueDate: draft.startDate,
+                        isAllDay: draft.isAllDay,
+                        calendarID: draft.calendarID,
+                        notes: draft.notes.isEmpty ? nil : draft.notes
+                    )
+                } else {
+                    await viewModel.createEvent(
                         title: draft.title,
                         startDate: draft.startDate,
                         endDate: draft.endDate,
@@ -185,9 +173,47 @@ struct CalendarRootView: View {
                         visibility: draft.visibility,
                         availability: draft.availability
                     )
+                }
+            }
+        case .edit(let event):
+            EventEditView(
+                mode: .edit(eventID: event.id),
+                calendars: viewModel.editableCalendars(for: event),
+                existingEvent: event,
+                onSave: { draft in
+                    if event.kind == .reminder {
+                        await viewModel.updateTask(
+                            eventID: event.id,
+                            title: draft.title,
+                            dueDate: draft.startDate,
+                            isAllDay: draft.isAllDay,
+                            calendarID: event.calendarID,
+                            notes: draft.notes.isEmpty ? nil : draft.notes
+                        )
+                    } else {
+                        await viewModel.updateEvent(
+                            eventID: event.id,
+                            title: draft.title,
+                            startDate: draft.startDate,
+                            endDate: draft.endDate,
+                            isAllDay: draft.isAllDay,
+                            calendarID: draft.calendarID,
+                            location: draft.location.isEmpty ? nil : draft.location,
+                            notes: draft.notes.isEmpty ? nil : draft.notes,
+                            repeatOption: draft.repeatOption,
+                            invitees: draft.invitees,
+                            attachmentURL: draft.attachmentURL.isEmpty ? nil : draft.attachmentURL,
+                            alertOption: draft.alertOption,
+                            visibility: draft.visibility,
+                            availability: draft.availability
+                        )
+                    }
                 },
-                onDelete: canModify ? {
+                onDelete: event.kind == .event && viewModel.isCalendarWritable(event.calendarID) ? {
                     await viewModel.deleteEvent(eventID: event.id, calendarID: event.calendarID)
+                } : nil,
+                onToggleTaskCompletion: event.kind == .reminder ? {
+                    await viewModel.setTaskCompletion(eventID: event.id, calendarID: event.calendarID, isCompleted: !event.isCompleted)
                 } : nil
             )
         }
@@ -195,30 +221,32 @@ struct CalendarRootView: View {
 }
 
 private struct CalendarConnectionView: View {
-    let isLoading: Bool
+    let isAppleLoading: Bool
+    let isGoogleLoading: Bool
     let onChooseICloud: () -> Void
     let onChooseGoogle: () -> Void
+    @Environment(\.appLanguage) private var language
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer()
 
-            Text("연동할 달력을 선택하세요.")
+            Text(L.tr("Choose a calendar to connect.", language: language))
                 .font(.system(size: 28, weight: .bold))
                 .padding(.bottom, 24)
 
             VStack(spacing: 12) {
                 calendarCard(
-                    title: "iCloud Calendar",
-                    description: "지금 이 기기에서 사용 중인 iCloud 캘린더, 리마인더와 연동합니다.",
-                    showSpinner: isLoading,
+                    title: L.tr("Apple Calendar", language: language),
+                    description: L.tr("Connect iCloud calendars and reminders used on this device.", language: language),
+                    showSpinner: isAppleLoading,
                     action: onChooseICloud
                 )
 
                 calendarCard(
-                    title: "Google Calendar",
-                    description: "Google 계정에 로그인 후 연동합니다.",
-                    showSpinner: false,
+                    title: L.tr("Google Calendar", language: language),
+                    description: L.tr("Sign in to your Google account to connect.", language: language),
+                    showSpinner: isGoogleLoading,
                     action: onChooseGoogle
                 )
             }
@@ -260,6 +288,6 @@ private struct CalendarConnectionView: View {
             .background(CalendarTheme.secondaryBackground, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(isLoading)
+        .disabled(isAppleLoading || isGoogleLoading)
     }
 }

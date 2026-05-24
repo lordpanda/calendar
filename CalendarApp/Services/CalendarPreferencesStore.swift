@@ -7,16 +7,26 @@ struct CalendarPreferences: Codable, Equatable {
 }
 
 struct CalendarAppSettings: Codable, Equatable {
+    var isICloudSyncEnabled: Bool
     var startOfWeek: StartOfWeekOption
     var showsWeekNumbers: Bool
+    var showsCompletedTasks: Bool
+    var monthContentScale: MonthContentScale
+    var language: AppLanguage
+    var usesDeviceTimeZone: Bool
     var defaultCalendarID: String?
     var calendarOrder: [String]
     var lastICloudSyncAt: Date?
     var lastGoogleSyncAt: Date?
 
     static let `default` = CalendarAppSettings(
+        isICloudSyncEnabled: false,
         startOfWeek: .system,
         showsWeekNumbers: false,
+        showsCompletedTasks: true,
+        monthContentScale: .normal,
+        language: .system,
+        usesDeviceTimeZone: true,
         defaultCalendarID: nil,
         calendarOrder: [],
         lastICloudSyncAt: nil,
@@ -24,8 +34,13 @@ struct CalendarAppSettings: Codable, Equatable {
     )
 
     private enum CodingKeys: String, CodingKey {
+        case isICloudSyncEnabled
         case startOfWeek
         case showsWeekNumbers
+        case showsCompletedTasks
+        case monthContentScale
+        case language
+        case usesDeviceTimeZone
         case defaultCalendarID
         case calendarOrder
         case lastICloudSyncAt
@@ -33,15 +48,25 @@ struct CalendarAppSettings: Codable, Equatable {
     }
 
     init(
+        isICloudSyncEnabled: Bool,
         startOfWeek: StartOfWeekOption,
         showsWeekNumbers: Bool,
+        showsCompletedTasks: Bool,
+        monthContentScale: MonthContentScale,
+        language: AppLanguage,
+        usesDeviceTimeZone: Bool,
         defaultCalendarID: String?,
         calendarOrder: [String],
         lastICloudSyncAt: Date?,
         lastGoogleSyncAt: Date?
     ) {
+        self.isICloudSyncEnabled = isICloudSyncEnabled
         self.startOfWeek = startOfWeek
         self.showsWeekNumbers = showsWeekNumbers
+        self.showsCompletedTasks = showsCompletedTasks
+        self.monthContentScale = monthContentScale
+        self.language = language
+        self.usesDeviceTimeZone = usesDeviceTimeZone
         self.defaultCalendarID = defaultCalendarID
         self.calendarOrder = calendarOrder
         self.lastICloudSyncAt = lastICloudSyncAt
@@ -50,8 +75,13 @@ struct CalendarAppSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        isICloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .isICloudSyncEnabled) ?? false
         startOfWeek = try container.decodeIfPresent(StartOfWeekOption.self, forKey: .startOfWeek) ?? .system
         showsWeekNumbers = try container.decodeIfPresent(Bool.self, forKey: .showsWeekNumbers) ?? false
+        showsCompletedTasks = try container.decodeIfPresent(Bool.self, forKey: .showsCompletedTasks) ?? true
+        monthContentScale = try container.decodeIfPresent(MonthContentScale.self, forKey: .monthContentScale) ?? .normal
+        language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
+        usesDeviceTimeZone = try container.decodeIfPresent(Bool.self, forKey: .usesDeviceTimeZone) ?? true
         defaultCalendarID = try container.decodeIfPresent(String.self, forKey: .defaultCalendarID)
         calendarOrder = try container.decodeIfPresent([String].self, forKey: .calendarOrder) ?? []
         lastICloudSyncAt = try container.decodeIfPresent(Date.self, forKey: .lastICloudSyncAt)

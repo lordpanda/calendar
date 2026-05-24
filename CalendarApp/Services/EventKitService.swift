@@ -1,8 +1,7 @@
 import EventKit
 import Foundation
 
-@MainActor
-final class EventKitService {
+final class EventKitService: @unchecked Sendable {
     enum AccessState: Equatable {
         case unknown
         case notDetermined
@@ -46,9 +45,18 @@ final class EventKitService {
     }
 
     func requestAccess() async throws -> AccessState {
-        _ = try await eventStore.requestFullAccessToEvents()
-        _ = try await eventStore.requestFullAccessToReminders()
+        if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
+            _ = try await eventStore.requestFullAccessToEvents()
+        }
+        if EKEventStore.authorizationStatus(for: .reminder) == .notDetermined {
+            _ = try await eventStore.requestFullAccessToReminders()
+        }
         return currentAccessState()
+    }
+
+    func requestReminderAccessIfNeeded() async throws {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .notDetermined else { return }
+        _ = try await eventStore.requestFullAccessToReminders()
     }
 
     func fetchCalendars() -> [CalendarSource] {
@@ -86,7 +94,11 @@ final class EventKitService {
             }
     }
 
-    func fetchEvents(in interval: DateInterval, calendars: [CalendarSource]) async -> [CalendarEvent] {
+    func fetchEvents(
+        in interval: DateInterval,
+        calendars: [CalendarSource],
+        showsCompletedTasks: Bool
+    ) async -> [CalendarEvent] {
         let eventIDs = Set(calendars.filter { $0.kind == .event }.map(\.id))
         let reminderIDs = Set(calendars.filter { $0.kind == .reminder }.map(\.id))
 
@@ -109,7 +121,7 @@ final class EventKitService {
                         id: event.eventIdentifier ?? UUID().uuidString,
                         calendarID: Self.sourceID(for: event.calendar, kind: .event),
                         kind: .event,
-                        title: event.title?.isEmpty == false ? event.title : "Untitled",
+                        title: event.title?.isEmpty == false ? event.title : L.tr("Untitled", language: .system),
                         location: event.location,
                         notes: event.notes,
                         startDate: event.startDate,
@@ -130,20 +142,33 @@ final class EventKitService {
             let selectedReminderCalendars = eventStore.calendars(for: .reminder).filter {
                 reminderIDs.contains(Self.sourceID(for: $0, kind: .reminder))
             }
-            let reminders = await fetchRemindersWithTimeout(in: interval, calendars: selectedReminderCalendars)
+            let reminders = await fetchRemindersWithTimeout(
+                in: interval,
+                calendars: selectedReminderCalendars,
+                showsCompletedTasks: showsCompletedTasks
+            )
             items.append(contentsOf: reminders)
         }
 
         return items.sorted { $0.startDate < $1.startDate }
     }
 
-    private func fetchRemindersWithTimeout(in interval: DateInterval, calendars: [EKCalendar]) async -> [CalendarEvent] {
+    private func fetchRemindersWithTimeout(
+        in interval: DateInterval,
+        calendars: [EKCalendar],
+        showsCompletedTasks: Bool
+    ) async -> [CalendarEvent] {
         guard !calendars.isEmpty else { return [] }
 
         return await withCheckedContinuation { continuation in
             let completion = ReminderFetchCompletion(continuation)
-            let predicate = eventStore.predicateForIncompleteReminders(
+            let incompletePredicate = eventStore.predicateForIncompleteReminders(
                 withDueDateStarting: interval.start,
+                ending: interval.end,
+                calendars: calendars
+            )
+            let completedPredicate = eventStore.predicateForCompletedReminders(
+                withCompletionDateStarting: interval.start,
                 ending: interval.end,
                 calendars: calendars
             )
@@ -152,32 +177,44 @@ final class EventKitService {
                 completion.resume(with: [])
             }
 
-            eventStore.fetchReminders(matching: predicate) { reminders in
-                let mapped = (reminders ?? [])
-                    .compactMap { reminder -> CalendarEvent? in
-                        guard let dueDate = reminder.dueDateComponents?.date else { return nil }
-                        let isAllDay = reminder.dueDateComponents?.hour == nil && reminder.dueDateComponents?.minute == nil
-                        let endDate = isAllDay
-                            ? Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: dueDate)) ?? dueDate.addingTimeInterval(86400)
-                            : dueDate.addingTimeInterval(60 * 30)
+            eventStore.fetchReminders(matching: incompletePredicate) { incompleteReminders in
+                guard showsCompletedTasks else {
+                    completion.resume(with: Self.mappedReminders(incompleteReminders ?? [], in: interval))
+                    return
+                }
 
-                        return CalendarEvent(
-                            id: reminder.calendarItemIdentifier,
-                            calendarID: Self.sourceID(for: reminder.calendar, kind: .reminder),
-                            kind: .reminder,
-                            title: reminder.title.isEmpty ? "Untitled Reminder" : reminder.title,
-                            location: nil,
-                            notes: reminder.notes,
-                            startDate: isAllDay ? Calendar.current.startOfDay(for: dueDate) : dueDate,
-                            endDate: endDate,
-                            isAllDay: isAllDay
-                        )
-                    }
-                    .sorted { $0.startDate < $1.startDate }
-
-                completion.resume(with: mapped)
+                self.eventStore.fetchReminders(matching: completedPredicate) { completedReminders in
+                    let allReminders = (incompleteReminders ?? []) + (completedReminders ?? [])
+                    completion.resume(with: Self.mappedReminders(allReminders, in: interval))
+                }
             }
         }
+    }
+
+    private static func mappedReminders(_ reminders: [EKReminder], in interval: DateInterval) -> [CalendarEvent] {
+        reminders
+            .compactMap { reminder -> CalendarEvent? in
+                guard let dueDate = reminder.dueDateComponents?.date else { return nil }
+                let isAllDay = reminder.dueDateComponents?.hour == nil && reminder.dueDateComponents?.minute == nil
+                let startDate = isAllDay ? Calendar.current.startOfDay(for: dueDate) : dueDate
+                let endDate = isAllDay
+                    ? Calendar.current.date(byAdding: .day, value: 1, to: startDate) ?? startDate.addingTimeInterval(86400)
+                    : dueDate.addingTimeInterval(60 * 30)
+                let event = CalendarEvent(
+                    id: reminder.calendarItemIdentifier,
+                    calendarID: Self.sourceID(for: reminder.calendar, kind: .reminder),
+                    kind: .reminder,
+                    title: reminder.title.isEmpty ? L.tr("Untitled Reminder", language: .system) : reminder.title,
+                    location: nil,
+                    notes: reminder.notes,
+                    startDate: startDate,
+                    endDate: endDate,
+                    isAllDay: isAllDay,
+                    isCompleted: reminder.isCompleted
+                )
+                return event.intersects(interval) ? event : nil
+            }
+            .sorted { $0.startDate < $1.startDate }
     }
 
     func createEvent(
@@ -197,12 +234,12 @@ final class EventKitService {
     ) throws {
         guard let rawCalendarID = Self.rawCalendarID(from: calendarID),
               let calendar = eventStore.calendars(for: .event).first(where: { $0.calendarIdentifier == rawCalendarID }) else {
-            throw NSError(domain: "EventKitService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Selected calendar could not be found."])
+            throw NSError(domain: "EventKitService", code: 1, userInfo: [NSLocalizedDescriptionKey: L.tr("Selected calendar could not be found.", language: .system)])
         }
 
         let event = EKEvent(eventStore: eventStore)
         event.calendar = calendar
-        event.title = title.isEmpty ? "Untitled" : title
+        event.title = title.isEmpty ? L.tr("Untitled", language: .system) : title
         event.startDate = startDate
         event.endDate = max(endDate, startDate.addingTimeInterval(60))
         event.isAllDay = isAllDay
@@ -233,16 +270,16 @@ final class EventKitService {
         availability: EventAvailabilityOption = .busy
     ) throws {
         guard let event = eventStore.event(withIdentifier: eventID) else {
-            throw NSError(domain: "EventKitService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Event could not be found."])
+            throw NSError(domain: "EventKitService", code: 2, userInfo: [NSLocalizedDescriptionKey: L.tr("Event could not be found.", language: .system)])
         }
 
         guard let rawCalendarID = Self.rawCalendarID(from: calendarID),
               let calendar = eventStore.calendars(for: .event).first(where: { $0.calendarIdentifier == rawCalendarID }) else {
-            throw NSError(domain: "EventKitService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Selected calendar could not be found."])
+            throw NSError(domain: "EventKitService", code: 1, userInfo: [NSLocalizedDescriptionKey: L.tr("Selected calendar could not be found.", language: .system)])
         }
 
         event.calendar = calendar
-        event.title = title.isEmpty ? "Untitled" : title
+        event.title = title.isEmpty ? L.tr("Untitled", language: .system) : title
         event.startDate = startDate
         event.endDate = max(endDate, startDate.addingTimeInterval(60))
         event.isAllDay = isAllDay
@@ -258,10 +295,65 @@ final class EventKitService {
 
     func deleteEvent(eventID: String) throws {
         guard let event = eventStore.event(withIdentifier: eventID) else {
-            throw NSError(domain: "EventKitService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Event could not be found."])
+            throw NSError(domain: "EventKitService", code: 2, userInfo: [NSLocalizedDescriptionKey: L.tr("Event could not be found.", language: .system)])
         }
 
         try eventStore.remove(event, span: .thisEvent)
+    }
+
+    func createReminder(
+        title: String,
+        dueDate: Date,
+        isAllDay: Bool,
+        calendarID: String,
+        notes: String? = nil
+    ) throws {
+        let reminder = EKReminder(eventStore: eventStore)
+        reminder.title = title.isEmpty ? L.tr("Untitled Reminder", language: .system) : title
+        reminder.notes = notes
+        reminder.dueDateComponents = Self.reminderDueDateComponents(from: dueDate, isAllDay: isAllDay)
+
+        if let rawCalendarID = Self.rawCalendarID(from: calendarID),
+           let calendar = eventStore.calendar(withIdentifier: rawCalendarID) {
+            reminder.calendar = calendar
+        } else if let defaultCalendar = eventStore.defaultCalendarForNewReminders() {
+            reminder.calendar = defaultCalendar
+        }
+
+        try eventStore.save(reminder, commit: true)
+    }
+
+    func updateReminder(
+        reminderID: String,
+        title: String,
+        dueDate: Date,
+        isAllDay: Bool,
+        calendarID: String,
+        notes: String? = nil
+    ) throws {
+        guard let reminder = eventStore.calendarItem(withIdentifier: reminderID) as? EKReminder else {
+            throw NSError(domain: "EventKitService", code: 3, userInfo: [NSLocalizedDescriptionKey: L.tr("Reminder could not be found.", language: .system)])
+        }
+
+        if let rawCalendarID = Self.rawCalendarID(from: calendarID),
+           let calendar = eventStore.calendar(withIdentifier: rawCalendarID) {
+            reminder.calendar = calendar
+        }
+
+        reminder.title = title.isEmpty ? L.tr("Untitled Reminder", language: .system) : title
+        reminder.notes = notes
+        reminder.dueDateComponents = Self.reminderDueDateComponents(from: dueDate, isAllDay: isAllDay)
+
+        try eventStore.save(reminder, commit: true)
+    }
+
+    func setReminderCompletion(reminderID: String, isCompleted: Bool) throws {
+        guard let reminder = eventStore.calendarItem(withIdentifier: reminderID) as? EKReminder else {
+            throw NSError(domain: "EventKitService", code: 3, userInfo: [NSLocalizedDescriptionKey: L.tr("Reminder could not be found.", language: .system)])
+        }
+
+        reminder.isCompleted = isCompleted
+        try eventStore.save(reminder, commit: true)
     }
 
     private static func sourceID(for calendar: EKCalendar, kind: CalendarSourceKind) -> String {
@@ -270,6 +362,16 @@ final class EventKitService {
 
     private static func rawCalendarID(from sourceID: String) -> String? {
         sourceID.split(separator: ":", maxSplits: 1).last.map(String.init)
+    }
+
+    private static func reminderDueDateComponents(from date: Date, isAllDay: Bool) -> DateComponents {
+        var components = Calendar.current.dateComponents(
+            isAllDay ? [.calendar, .timeZone, .year, .month, .day] : [.calendar, .timeZone, .year, .month, .day, .hour, .minute],
+            from: date
+        )
+        components.calendar = Calendar.current
+        components.timeZone = TimeZone.current
+        return components
     }
 
     private static func repeatOption(for rules: [EKRecurrenceRule]?) -> EventRepeatOption {
