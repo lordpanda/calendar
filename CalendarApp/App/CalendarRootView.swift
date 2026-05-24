@@ -10,7 +10,10 @@ struct CalendarRootView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                if viewModel.shouldShowCalendarUI {
+                if !viewModel.isInitialLoadComplete && !viewModel.shouldShowCalendarUI {
+                    CalendarLaunchLoadingView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if viewModel.shouldShowCalendarUI {
                     MonthScrollView(
                         viewModel: viewModel,
                         selectedDay: $selectedDay,
@@ -217,6 +220,13 @@ struct CalendarRootView: View {
                 } : nil
             )
         }
+    }
+}
+
+private struct CalendarLaunchLoadingView: View {
+    var body: some View {
+        ProgressView()
+            .controlSize(.large)
     }
 }
 

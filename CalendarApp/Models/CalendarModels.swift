@@ -66,7 +66,7 @@ enum MonthContentScale: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-enum CalendarProviderKind: String, CaseIterable, Identifiable {
+enum CalendarProviderKind: String, CaseIterable, Codable, Identifiable {
     case iCloud
     case google
 
@@ -414,7 +414,7 @@ enum EventAvailabilityOption: String, CaseIterable, Codable, Hashable, Identifia
     }
 }
 
-struct CalendarSource: Identifiable, Hashable {
+struct CalendarSource: Codable, Identifiable, Hashable {
     let id: String
     var provider: CalendarProviderKind
     var kind: CalendarSourceKind
@@ -435,7 +435,7 @@ struct CalendarSource: Identifiable, Hashable {
     }
 }
 
-struct CalendarEvent: Identifiable, Hashable {
+struct CalendarEvent: Codable, Identifiable, Hashable {
     let id: String
     var calendarID: String
     var kind: CalendarItemKind

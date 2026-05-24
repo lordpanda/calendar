@@ -92,6 +92,8 @@ struct CalendarAppSettings: Codable, Equatable {
 private struct CalendarPreferencesPayload: Codable {
     var calendars: [String: CalendarPreferences]
     var settings: CalendarAppSettings
+    var cachedCalendarSources: [CalendarSource]?
+    var cachedEvents: [CalendarEvent]?
 }
 
 @MainActor
@@ -103,17 +105,37 @@ final class CalendarPreferencesStore {
         self.defaults = defaults
     }
 
-    func load() -> (preferences: [String: CalendarPreferences], settings: CalendarAppSettings) {
+    func load() -> (
+        preferences: [String: CalendarPreferences],
+        settings: CalendarAppSettings,
+        cachedCalendarSources: [CalendarSource],
+        cachedEvents: [CalendarEvent]
+    ) {
         guard let data = defaults.data(forKey: key),
               let decoded = try? JSONDecoder().decode(CalendarPreferencesPayload.self, from: data) else {
-            return ([:], .default)
+            return ([:], .default, [], [])
         }
 
-        return (decoded.calendars, decoded.settings)
+        return (
+            decoded.calendars,
+            decoded.settings,
+            decoded.cachedCalendarSources ?? [],
+            decoded.cachedEvents ?? []
+        )
     }
 
-    func save(preferences: [String: CalendarPreferences], settings: CalendarAppSettings) {
-        let payload = CalendarPreferencesPayload(calendars: preferences, settings: settings)
+    func save(
+        preferences: [String: CalendarPreferences],
+        settings: CalendarAppSettings,
+        cachedCalendarSources: [CalendarSource],
+        cachedEvents: [CalendarEvent]
+    ) {
+        let payload = CalendarPreferencesPayload(
+            calendars: preferences,
+            settings: settings,
+            cachedCalendarSources: cachedCalendarSources,
+            cachedEvents: cachedEvents
+        )
         guard let data = try? JSONEncoder().encode(payload) else { return }
         defaults.set(data, forKey: key)
     }

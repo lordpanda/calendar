@@ -31,6 +31,7 @@ final class CalendarViewModel {
     var settings: CalendarAppSettings
     var isICloudSyncInProgress = false
     var isGoogleSyncInProgress = false
+    var isInitialLoadComplete = false
 
     private let baseCalendar: Calendar
     private var calendar: Calendar
@@ -39,8 +40,10 @@ final class CalendarViewModel {
     private let preferencesStore: CalendarPreferencesStore
     private var observationTask: Task<Void, Never>?
     private let monthPageRadius = 12
+    private let eventFetchRadius = 2
     private var calendarPreferences: [String: CalendarPreferences]
     private var currentMonthAnchor: Date
+    private var loadedEventIntervals: [CalendarProviderKind: DateInterval] = [:]
 
     init(
         calendar: Calendar = .current,
@@ -66,6 +69,8 @@ final class CalendarViewModel {
         selectedMonthID = todayMonth
         currentMonthAnchor = todayMonth
         months = Self.makeMonths(around: todayMonth, radius: monthPageRadius, calendar: configuredCalendar)
+        calendarSources = mergeLocalCalendarState(into: storedState.cachedCalendarSources)
+        events = storedState.cachedEvents
         accessState = eventKitService.currentAccessState()
         googleAuthState = googleCalendarService.authState
     }
@@ -185,6 +190,10 @@ final class CalendarViewModel {
     }
 
     func loadInitialData() async {
+        guard !isInitialLoadComplete else { return }
+        loadState = .loading
+        defer { isInitialLoadComplete = true }
+
         accessState = eventKitService.currentAccessState()
         await googleCalendarService.restorePreviousSignInIfPossible()
         googleAuthState = googleCalendarService.authState
@@ -196,6 +205,8 @@ final class CalendarViewModel {
             selectedProvider = .iCloud
             await reloadCalendarsAndEvents()
             startObservingStoreChangesIfNeeded()
+        } else {
+            loadState = .idle
         }
     }
 
@@ -558,6 +569,10 @@ final class CalendarViewModel {
 
         if monthID == months.first?.id || monthID == months.last?.id {
             shiftMonthWindow(to: monthID)
+        } else {
+            Task {
+                await reloadEventsForSelectedMonthIfNeeded()
+            }
         }
     }
 
@@ -703,7 +718,7 @@ final class CalendarViewModel {
         let calendars = await Task.detached {
             eventKitService.fetchCalendars()
         }.value
-        let interval = visibleDateInterval()
+        let interval = eventFetchInterval(around: selectedMonthID)
 
         replaceCalendarSources(for: .iCloud, with: calendars)
         normalizeCalendarOrderIfNeeded()
@@ -712,7 +727,8 @@ final class CalendarViewModel {
             calendars: calendars,
             showsCompletedTasks: settings.showsCompletedTasks
         )
-        replaceEvents(for: .iCloud, with: iCloudEvents)
+        replaceEvents(for: .iCloud, in: interval, with: iCloudEvents)
+        loadedEventIntervals[.iCloud] = interval
         settings.lastICloudSyncAt = Date()
         persistStoredState()
         loadState = .loaded
@@ -735,7 +751,7 @@ final class CalendarViewModel {
 
         do {
             let calendars = try await googleCalendarService.fetchCalendars()
-            let interval = visibleDateInterval()
+            let interval = eventFetchInterval(around: selectedMonthID)
             replaceCalendarSources(for: .google, with: calendars)
             normalizeCalendarOrderIfNeeded()
             let googleEvents = try await googleCalendarService.fetchEvents(
@@ -743,7 +759,8 @@ final class CalendarViewModel {
                 calendars: calendars,
                 showsCompletedTasks: settings.showsCompletedTasks
             )
-            replaceEvents(for: .google, with: googleEvents)
+            replaceEvents(for: .google, in: interval, with: googleEvents)
+            loadedEventIntervals[.google] = interval
             googleAuthState = googleCalendarService.authState
             settings.lastGoogleSyncAt = Date()
             persistStoredState()
@@ -763,9 +780,11 @@ final class CalendarViewModel {
         calendarSources = mergeLocalCalendarState(into: otherCalendars + calendars)
     }
 
-    private func replaceEvents(for provider: CalendarProviderKind, with providerEvents: [CalendarEvent]) {
+    private func replaceEvents(for provider: CalendarProviderKind, in interval: DateInterval, with providerEvents: [CalendarEvent]) {
         let providerCalendarIDs = Set(calendarSources.filter { $0.provider == provider }.map(\.id))
-        events.removeAll { providerCalendarIDs.contains($0.calendarID) }
+        events.removeAll { event in
+            providerCalendarIDs.contains(event.calendarID) && event.intersects(interval)
+        }
         events.append(contentsOf: providerEvents)
         events.sort { $0.startDate < $1.startDate }
     }
@@ -843,7 +862,12 @@ final class CalendarViewModel {
     }
 
     private func persistStoredState() {
-        preferencesStore.save(preferences: calendarPreferences, settings: settings)
+        preferencesStore.save(
+            preferences: calendarPreferences,
+            settings: settings,
+            cachedCalendarSources: calendarSources,
+            cachedEvents: events
+        )
     }
 
     private static func makeConfiguredCalendar(base: Calendar, startOfWeek: StartOfWeekOption) -> Calendar {
@@ -884,6 +908,32 @@ final class CalendarViewModel {
         }
     }
 
+    private func reloadEventsForSelectedMonthIfNeeded() async {
+        guard let provider = activeEventProvider(),
+              let monthInterval = calendar.dateInterval(of: .month, for: selectedMonthID) else {
+            return
+        }
+
+        if let loadedInterval = loadedEventIntervals[provider],
+           loadedInterval.start <= monthInterval.start,
+           loadedInterval.end >= monthInterval.end {
+            return
+        }
+
+        await reloadEventsForVisibleInterval()
+    }
+
+    private func activeEventProvider() -> CalendarProviderKind? {
+        switch selectedProvider {
+        case .google where googleAuthState.isSignedIn:
+            return .google
+        case .iCloud where accessState == .granted:
+            return .iCloud
+        default:
+            return nil
+        }
+    }
+
     private func startObservingStoreChangesIfNeeded() {
         guard observationTask == nil else { return }
 
@@ -896,15 +946,16 @@ final class CalendarViewModel {
         }
     }
 
-    private func visibleDateInterval() -> DateInterval {
-        guard let firstMonth = months.first?.date,
-              let lastMonth = months.last?.date,
+    private func eventFetchInterval(around monthID: Date) -> DateInterval {
+        guard let monthStart = calendar.dateInterval(of: .month, for: monthID)?.start,
+              let intervalStart = calendar.date(byAdding: .month, value: -eventFetchRadius, to: monthStart),
+              let lastMonth = calendar.date(byAdding: .month, value: eventFetchRadius, to: monthStart),
               let intervalEnd = calendar.date(byAdding: .month, value: 1, to: lastMonth) else {
             let now = Date()
-            return DateInterval(start: now, duration: 60 * 60 * 24 * 365)
+            return DateInterval(start: now, duration: 60 * 60 * 24 * 150)
         }
 
-        return DateInterval(start: firstMonth, end: intervalEnd)
+        return DateInterval(start: intervalStart, end: intervalEnd)
     }
 
     private static func makeMonths(around date: Date, radius: Int, calendar: Calendar) -> [CalendarMonth] {
