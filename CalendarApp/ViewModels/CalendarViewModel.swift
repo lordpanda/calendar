@@ -439,7 +439,9 @@ final class CalendarViewModel {
         attachmentURL: String? = nil,
         alertOption: EventAlertOption = .none,
         visibility: EventVisibilityOption = .default,
-        availability: EventAvailabilityOption = .busy
+        availability: EventAvailabilityOption = .busy,
+        recurringEventID: String? = nil,
+        editScope: RecurringEventEditScope = .thisEvent
     ) async -> Bool {
         do {
             if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
@@ -457,7 +459,9 @@ final class CalendarViewModel {
                     attachmentURL: attachmentURL,
                     alertOption: alertOption,
                     visibility: visibility,
-                    availability: availability
+                    availability: availability,
+                    recurringEventID: recurringEventID,
+                    editScope: editScope
                 )
                 await reloadGoogleCalendarsAndEvents()
             } else {
@@ -475,7 +479,8 @@ final class CalendarViewModel {
                     attachmentURL: attachmentURL,
                     alertOption: alertOption,
                     visibility: visibility,
-                    availability: availability
+                    availability: availability,
+                    editScope: editScope
                 )
                 await reloadCalendarsAndEvents()
             }
@@ -526,12 +531,15 @@ final class CalendarViewModel {
 
     func setTaskCompletion(eventID: String, calendarID: String, isCompleted: Bool) async -> Bool {
         do {
-            if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
+            let provider = calendarSources.first(where: { $0.id == calendarID })?.provider
+            if provider == .google {
                 try await googleCalendarService.setTaskCompletion(eventID: eventID, isCompleted: isCompleted)
-                await reloadGoogleCalendarsAndEvents()
             } else {
                 try eventKitService.setReminderCompletion(reminderID: eventID, isCompleted: isCompleted)
-                await reloadCalendarsAndEvents()
+            }
+            updateCachedTaskCompletion(eventID: eventID, isCompleted: isCompleted)
+            Task {
+                await reloadEventsForVisibleInterval()
             }
             return true
         } catch {
@@ -541,13 +549,27 @@ final class CalendarViewModel {
         }
     }
 
-    func deleteEvent(eventID: String, calendarID: String) async -> Bool {
+    func deleteEvent(
+        eventID: String,
+        calendarID: String,
+        recurringEventID: String? = nil,
+        deleteScope: RecurringEventDeleteScope = .thisEvent
+    ) async -> Bool {
         do {
             if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
-                try await googleCalendarService.deleteEvent(eventID: eventID, calendarID: calendarID)
+                try await googleCalendarService.deleteEvent(
+                    eventID: eventID,
+                    calendarID: calendarID,
+                    recurringEventID: recurringEventID,
+                    deleteScope: deleteScope
+                )
                 await reloadGoogleCalendarsAndEvents()
             } else {
-                try eventKitService.deleteEvent(eventID: eventID)
+                try eventKitService.deleteEvent(
+                    eventID: eventID,
+                    recurringEventID: recurringEventID,
+                    deleteScope: deleteScope
+                )
                 await reloadCalendarsAndEvents()
             }
             return true
@@ -787,6 +809,12 @@ final class CalendarViewModel {
         }
         events.append(contentsOf: providerEvents)
         events.sort { $0.startDate < $1.startDate }
+    }
+
+    private func updateCachedTaskCompletion(eventID: String, isCompleted: Bool) {
+        guard let index = events.firstIndex(where: { $0.id == eventID }) else { return }
+        events[index].isCompleted = isCompleted
+        persistStoredState()
     }
 
     private func mergeLocalCalendarState(into calendars: [CalendarSource]) -> [CalendarSource] {

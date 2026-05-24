@@ -83,6 +83,16 @@ enum CalendarItemKind: String, Codable, Hashable {
     case reminder
 }
 
+enum RecurringEventEditScope: Equatable {
+    case thisEvent
+    case futureEvents
+}
+
+enum RecurringEventDeleteScope: Equatable {
+    case thisEvent
+    case allEvents
+}
+
 enum EventRepeatFrequency: String, CaseIterable, Codable, Hashable, Identifiable {
     case daily
     case weekly
@@ -438,6 +448,7 @@ struct CalendarSource: Codable, Identifiable, Hashable {
 struct CalendarEvent: Codable, Identifiable, Hashable {
     let id: String
     var calendarID: String
+    var recurringEventID: String?
     var kind: CalendarItemKind
     var title: String
     var location: String?
@@ -452,6 +463,10 @@ struct CalendarEvent: Codable, Identifiable, Hashable {
     var visibility: EventVisibilityOption = .default
     var availability: EventAvailabilityOption = .busy
     var isCompleted: Bool = false
+
+    var isRecurring: Bool {
+        repeatOption != .never || recurringEventID != nil
+    }
 
     func intersects(_ interval: DateInterval) -> Bool {
         startDate < interval.end && endDate > interval.start

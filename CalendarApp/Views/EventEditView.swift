@@ -31,16 +31,54 @@ struct EventEditView: View {
         var repeatOption: EventRepeatOption = .never
         var invitees: [String] = []
         var attachmentURL = ""
+        var videoCallURL = ""
         var alertOption: EventAlertOption = .none
         var visibility: EventVisibilityOption = .default
         var availability: EventAvailabilityOption = .busy
         var isCompleted = false
         var kind: CalendarItemKind = .event
+
+        private static let videoCallPrefix = "Video call: "
+
+        var notesForStorage: String {
+            let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedVideoCallURL = videoCallURL.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !trimmedVideoCallURL.isEmpty else {
+                return trimmedNotes
+            }
+
+            guard !trimmedNotes.isEmpty else {
+                return Self.videoCallPrefix + trimmedVideoCallURL
+            }
+
+            return trimmedNotes + "\n" + Self.videoCallPrefix + trimmedVideoCallURL
+        }
+
+        static func userNotes(from storedNotes: String?) -> String {
+            (storedNotes ?? "")
+                .components(separatedBy: .newlines)
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(videoCallPrefix) }
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        static func videoCallURL(from storedNotes: String?) -> String {
+            (storedNotes ?? "")
+                .components(separatedBy: .newlines)
+                .first { $0.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(videoCallPrefix) }
+                .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).dropFirst(videoCallPrefix.count)) } ?? ""
+        }
     }
 
     enum Mode {
         case create
         case edit(eventID: String)
+    }
+
+    private enum PendingRecurringAction {
+        case save
+        case delete
     }
 
     private enum PickerFocus: Equatable {
@@ -53,20 +91,24 @@ struct EventEditView: View {
 
     let mode: Mode
     let calendars: [CalendarSource]
-    let onSave: (Draft) async -> Bool
-    let onDelete: (() async -> Bool)?
+    let onSave: (Draft, RecurringEventEditScope) async -> Bool
+    let onDelete: ((RecurringEventDeleteScope) async -> Bool)?
     let onToggleTaskCompletion: (() async -> Bool)?
+    private let editsRecurringEvent: Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var language
     @State private var draft: Draft
     @State private var itemKind: CalendarItemKind
     @State private var isSaving = false
+    @State private var pendingRecurringAction: PendingRecurringAction?
     @State private var expandedPicker: PickerFocus?
     @State private var isMapSearchPresented = false
+    @State private var isVideoCallPresented = false
     @State private var isInviteesPresented = false
     @State private var isAttachmentPresented = false
     @State private var isCustomRepeatPresented = false
+    @State private var isDetailsExpanded = false
     @FocusState private var focusedField: FocusField?
 
     init(
@@ -75,8 +117,8 @@ struct EventEditView: View {
         preferredCalendarID: String? = nil,
         seedDate: Date? = nil,
         existingEvent: CalendarEvent? = nil,
-        onSave: @escaping (Draft) async -> Bool,
-        onDelete: (() async -> Bool)? = nil,
+        onSave: @escaping (Draft, RecurringEventEditScope) async -> Bool,
+        onDelete: ((RecurringEventDeleteScope) async -> Bool)? = nil,
         onToggleTaskCompletion: (() async -> Bool)? = nil
     ) {
         self.mode = mode
@@ -84,13 +126,14 @@ struct EventEditView: View {
         self.onSave = onSave
         self.onDelete = onDelete
         self.onToggleTaskCompletion = onToggleTaskCompletion
+        self.editsRecurringEvent = existingEvent?.isRecurring == true
         _itemKind = State(initialValue: existingEvent?.kind ?? .event)
 
         if let existingEvent {
             _draft = State(initialValue: Draft(
                 title: existingEvent.title,
                 location: existingEvent.location ?? "",
-                notes: existingEvent.notes ?? "",
+                notes: Draft.userNotes(from: existingEvent.notes),
                 startDate: existingEvent.startDate,
                 endDate: existingEvent.endDate,
                 isAllDay: existingEvent.isAllDay,
@@ -98,6 +141,7 @@ struct EventEditView: View {
                 repeatOption: existingEvent.repeatOption,
                 invitees: existingEvent.invitees,
                 attachmentURL: existingEvent.attachmentURL ?? "",
+                videoCallURL: Draft.videoCallURL(from: existingEvent.notes),
                 alertOption: existingEvent.alertOption,
                 visibility: existingEvent.visibility,
                 availability: existingEvent.availability,
@@ -124,7 +168,6 @@ struct EventEditView: View {
                     if !isTask {
                         calendarSection
                         detailsCard
-                        alertCard
                     } else {
                         taskNotesCard
                     }
@@ -166,6 +209,9 @@ struct EventEditView: View {
                     isMapSearchPresented = false
                 }
             }
+            .sheet(isPresented: $isVideoCallPresented) {
+                VideoCallEditView(videoCallURL: $draft.videoCallURL)
+            }
             .sheet(isPresented: $isInviteesPresented) {
                 InviteesEditView(invitees: $draft.invitees)
             }
@@ -174,6 +220,16 @@ struct EventEditView: View {
             }
             .fullScreenCover(isPresented: $isCustomRepeatPresented) {
                 CustomRepeatEditView(selection: $draft.repeatOption)
+            }
+            .confirmationDialog(
+                recurringDialogTitle,
+                isPresented: Binding(
+                    get: { pendingRecurringAction != nil },
+                    set: { if !$0 { pendingRecurringAction = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                recurringDialogActions
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -186,12 +242,7 @@ struct EventEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(confirmButtonTitle) {
-                        Task {
-                            isSaving = true
-                            let saved = await onSave(draft)
-                            isSaving = false
-                            if saved { dismiss() }
-                        }
+                        requestSave()
                     }
                     .disabled(isSaving || draft.calendarID.isEmpty || (!isTask && !selectedCalendarIsWritable))
                     .foregroundStyle(.primary)
@@ -222,27 +273,38 @@ struct EventEditView: View {
                         expandedPicker = nil
                     }
             }
+            .zIndex(3)
 
             EventDivider()
+                .zIndex(3)
 
             VStack(spacing: 0) {
                 dateTimeRow(date: $draft.startDate, dateFocus: .startDate, timeFocus: .startTime)
+                    .zIndex(2)
 
                 expandedDatePicker(for: $draft.startDate, dateFocus: .startDate, timeFocus: .startTime)
+                    .zIndex(0)
             }
+            .zIndex(2)
 
             if !isTask {
                 EventDivider()
+                    .zIndex(2)
 
                 VStack(spacing: 0) {
                     dateTimeRow(date: $draft.endDate, dateFocus: .endDate, timeFocus: .endTime)
+                        .zIndex(1)
 
                     expandedDatePicker(for: $draft.endDate, dateFocus: .endDate, timeFocus: .endTime)
+                        .zIndex(0)
                 }
+                .zIndex(1)
 
                 EventDivider()
+                    .zIndex(1)
 
                 repeatRow
+                    .zIndex(1)
             }
         }
         .background(Color(.systemBackground))
@@ -254,13 +316,13 @@ struct EventEditView: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    if calendars.isEmpty {
+                    if selectableCalendars.isEmpty {
                         Text(L.tr("No writable calendars", language: language))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 4)
                     } else {
-                        ForEach(calendars) { cal in
+                        ForEach(selectableCalendars) { cal in
                             Button {
                                 if cal.isWritable { draft.calendarID = cal.id }
                             } label: {
@@ -298,54 +360,100 @@ struct EventEditView: View {
 
             EventDivider()
 
-                EventRow {
-                    Text(L.tr("Video Call", language: language))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                Button(L.tr("Add", language: language)) {}
-                    .foregroundStyle(.blue)
-            }
-
-            EventDivider()
-
             Button {
-                isInviteesPresented = true
+                withAnimation(.spring(duration: 0.25)) {
+                    isDetailsExpanded.toggle()
+                }
             } label: {
                 EventRow {
-                    Text(L.tr("Invitees", language: language))
+                    Text(L.tr("Details", language: language))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(draft.invitees.isEmpty ? L.tr("None", language: language) : "\(draft.invitees.count)")
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Image(systemName: "chevron.right")
+
+                    Image(systemName: "chevron.down")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isDetailsExpanded ? 180 : 0))
                 }
             }
             .buttonStyle(.plain)
 
-            EventDivider()
+            if isDetailsExpanded {
+                Group {
+                    EventDivider()
 
-            Button {
-                isAttachmentPresented = true
-            } label: {
-                EventRow {
-                    Text(L.tr("Attachment", language: language))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(draft.attachmentURL.isEmpty ? L.tr("None", language: language) : "1")
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.tertiary)
+                    Button {
+                        isVideoCallPresented = true
+                    } label: {
+                        EventRow {
+                            Text(L.tr("Video Call", language: language))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(videoCallSummary)
+                                .foregroundStyle(draft.videoCallURL.isEmpty ? .blue : .secondary)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    EventDivider()
+
+                    Button {
+                        isInviteesPresented = true
+                    } label: {
+                        EventRow {
+                            Text(L.tr("Invitees", language: language))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(draft.invitees.isEmpty ? L.tr("None", language: language) : "\(draft.invitees.count)")
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    EventDivider()
+
+                    Button {
+                        isAttachmentPresented = true
+                    } label: {
+                        EventRow {
+                            Text(L.tr("Attachment", language: language))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(draft.attachmentURL.isEmpty ? L.tr("None", language: language) : "1")
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    EventDivider()
+
+                    pickerRow(L.tr("Alert", language: language), selection: $draft.alertOption, values: EventAlertOption.allCases)
+
+                    EventDivider()
+
+                    pickerRow(L.tr("Visibility", language: language), selection: $draft.visibility, values: EventVisibilityOption.allCases)
+
+                    EventDivider()
+
+                    pickerRow(L.tr("Show As", language: language), selection: $draft.availability, values: EventAvailabilityOption.allCases)
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            .buttonStyle(.plain)
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -387,14 +495,7 @@ struct EventEditView: View {
                     isCustomRepeatPresented = true
                 }
             } label: {
-                HStack(spacing: 5) {
-                    Text(draft.repeatOption.title(language: language))
-                        .multilineTextAlignment(.trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(.secondary)
+                menuValueLabel(draft.repeatOption.title(language: language))
             }
             .tint(.secondary)
         }
@@ -419,13 +520,7 @@ struct EventEditView: View {
 
     private var deleteCard: some View {
         Button(role: .destructive) {
-            Task {
-                guard let onDelete else { return }
-                isSaving = true
-                let deleted = await onDelete()
-                isSaving = false
-                if deleted { dismiss() }
-            }
+            requestDelete()
         } label: {
             Text(isTask ? L.tr("Delete Task", language: language) : L.tr("Delete Event", language: language))
                 .frame(maxWidth: .infinity)
@@ -502,12 +597,16 @@ struct EventEditView: View {
                 .datePickerStyle(.graphical)
                 .labelsHidden()
                 .padding(.horizontal, 10)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .background(Color(.systemBackground))
+                .clipped()
+                .transition(.move(edge: .top))
         } else if expandedPicker == timeFocus {
             DatePicker("", selection: timeSelectionBinding(for: timeFocus), displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel)
                 .labelsHidden()
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .background(Color(.systemBackground))
+                .clipped()
+                .transition(.move(edge: .top))
         }
     }
 
@@ -577,15 +676,28 @@ struct EventEditView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Picker(title, selection: selection) {
+            Menu {
                 ForEach(values) { option in
-                    Text(optionTitle(option)).tag(option)
+                    Button(optionTitle(option)) {
+                        selection.wrappedValue = option
+                    }
                 }
+            } label: {
+                menuValueLabel(optionTitle(selection.wrappedValue))
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
             .tint(.secondary)
         }
+    }
+
+    private func menuValueLabel(_ text: String) -> some View {
+        HStack(spacing: 5) {
+            Text(text)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 12, weight: .semibold))
+        }
+        .foregroundStyle(.secondary)
     }
 
     private func optionTitle<Option>(_ option: Option) -> String {
@@ -598,6 +710,81 @@ struct EventEditView: View {
             return option.title(language: language)
         default:
             return String(describing: option)
+        }
+    }
+
+    private func requestSave() {
+        if case .edit = mode, editsRecurringEvent, !isTask {
+            pendingRecurringAction = .save
+        } else {
+            performSave(scope: .thisEvent)
+        }
+    }
+
+    private func requestDelete() {
+        guard onDelete != nil else { return }
+        if editsRecurringEvent, !isTask {
+            pendingRecurringAction = .delete
+        } else {
+            performDelete(scope: .thisEvent)
+        }
+    }
+
+    private func performSave(scope: RecurringEventEditScope) {
+        Task {
+            isSaving = true
+            let saved = await onSave(draft, scope)
+            isSaving = false
+            pendingRecurringAction = nil
+            if saved { dismiss() }
+        }
+    }
+
+    private func performDelete(scope: RecurringEventDeleteScope) {
+        Task {
+            guard let onDelete else { return }
+            isSaving = true
+            let deleted = await onDelete(scope)
+            isSaving = false
+            pendingRecurringAction = nil
+            if deleted { dismiss() }
+        }
+    }
+
+    private var recurringDialogTitle: String {
+        switch pendingRecurringAction {
+        case .save:
+            return L.tr("Edit recurring event?", language: language)
+        case .delete:
+            return L.tr("Delete recurring event?", language: language)
+        case nil:
+            return ""
+        }
+    }
+
+    @ViewBuilder
+    private var recurringDialogActions: some View {
+        switch pendingRecurringAction {
+        case .save:
+            Button(L.tr("Only This Event", language: language)) {
+                performSave(scope: .thisEvent)
+            }
+            Button(L.tr("This and Future Events", language: language)) {
+                performSave(scope: .futureEvents)
+            }
+        case .delete:
+            Button(L.tr("Only This Event", language: language), role: .destructive) {
+                performDelete(scope: .thisEvent)
+            }
+            Button(L.tr("All Events", language: language), role: .destructive) {
+                performDelete(scope: .allEvents)
+            }
+        case nil:
+            EmptyView()
+        }
+
+        Button(L.tr("Cancel", language: language), role: .cancel) {
+            pendingRecurringAction = nil
         }
     }
 
@@ -617,6 +804,19 @@ struct EventEditView: View {
         }
     }
 
+    private var videoCallSummary: String {
+        let trimmed = draft.videoCallURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return L.tr("Add", language: language)
+        }
+
+        guard let url = URL(string: trimmed), let host = url.host(), !host.isEmpty else {
+            return trimmed
+        }
+
+        return host
+    }
+
     private var selectedCalendarIsWritable: Bool {
         calendars.first(where: { $0.id == draft.calendarID })?.isWritable == true
     }
@@ -625,12 +825,16 @@ struct EventEditView: View {
         itemKind == .reminder
     }
 
+    private var selectableCalendars: [CalendarSource] {
+        calendars.filter { $0.kind.rawValue == itemKind.rawValue }
+    }
+
     private func setItemKind(_ kind: CalendarItemKind) {
         guard case .create = mode, itemKind != kind else { return }
         itemKind = kind
         draft.kind = kind
-        if let calendar = calendars.first(where: { $0.kind.rawValue == kind.rawValue && $0.isVisible })
-            ?? calendars.first(where: { $0.kind.rawValue == kind.rawValue }) {
+        if let calendar = selectableCalendars.first(where: { $0.isVisible })
+            ?? selectableCalendars.first {
             draft.calendarID = calendar.id
         } else {
             draft.calendarID = ""
@@ -639,7 +843,7 @@ struct EventEditView: View {
     }
 
     private func scrollToSelectedCalendar(with proxy: ScrollViewProxy, animated: Bool) {
-        guard calendars.contains(where: { $0.id == draft.calendarID }) else { return }
+        guard selectableCalendars.contains(where: { $0.id == draft.calendarID }) else { return }
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(80))
@@ -710,13 +914,15 @@ private struct EventRow<Content: View>: View {
         .font(.body)
         .frame(minHeight: 52)
         .padding(.horizontal, 16)
+        .background(Color(.systemBackground))
     }
 }
 
 private struct EventDivider: View {
     var body: some View {
         Divider()
-            .padding(.leading, 16)
+            .padding(.horizontal, 16)
+            .background(Color(.systemBackground))
     }
 }
 
@@ -1097,32 +1303,50 @@ private struct LocationSearchView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var language
     @StateObject private var search = LocationSearchModel()
+    @State private var isSearchPresented = false
 
     var body: some View {
         NavigationStack {
             List(search.results) { result in
                 Button {
-                    onSelect(result.displayText)
+                    onSelect(result.title)
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(result.title)
                             .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         if !result.subtitle.isEmpty {
                             Text(result.subtitle)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .padding(.vertical, 3)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
             }
+            .tint(.primary)
             .navigationTitle(L.tr("Location", language: language))
-            .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .always), prompt: L.tr("Search maps", language: language))
+            .searchable(
+                text: $search.query,
+                isPresented: $isSearchPresented,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: L.tr("Search maps", language: language)
+            )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L.tr("Cancel", language: language)) {
                         dismiss()
                     }
+                }
+            }
+            .onAppear {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    isSearchPresented = true
                 }
             }
         }
@@ -1134,9 +1358,6 @@ private struct LocationSearchResult: Identifiable, Hashable {
     let subtitle: String
 
     var id: String { "\(title)\n\(subtitle)" }
-    var displayText: String {
-        subtitle.isEmpty ? title : "\(title), \(subtitle)"
-    }
 }
 
 @MainActor
@@ -1314,6 +1535,42 @@ private struct AttachmentEditView: View {
                 }
             }
             .navigationTitle(L.tr("Attachment", language: language))
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L.tr("Done", language: language)) {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct VideoCallEditView: View {
+    @Binding var videoCallURL: String
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var language
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("https://...", text: $videoCallURL)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                } footer: {
+                    Text(L.tr("Use a video meeting URL.", language: language))
+                }
+
+                if !videoCallURL.isEmpty {
+                    Section {
+                        Button(L.tr("Remove Video Call", language: language), role: .destructive) {
+                            videoCallURL = ""
+                        }
+                    }
+                }
+            }
+            .navigationTitle(L.tr("Video Call", language: language))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L.tr("Done", language: language)) {

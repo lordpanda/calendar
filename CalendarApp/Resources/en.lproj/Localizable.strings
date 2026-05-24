@@ -9,6 +9,7 @@
 "Add event" = "Add event";
 "Alert" = "Alert";
 "All-day" = "All-day";
+"All Events" = "All Events";
 "Apple" = "Apple";
 "Apple Calendar" = "Apple Calendar";
 "At time of event" = "At time of event";
@@ -38,6 +39,8 @@
 "Custom Repeat" = "Custom Repeat";
 "Custom..." = "Custom...";
 "Day" = "Day";
+"Delete recurring event?" = "Delete recurring event?";
+"Details" = "Details";
 "Days of Week" = "Days of Week";
 "Default" = "Default";
 "Delete Event" = "Delete Event";
@@ -49,6 +52,7 @@
 "Edit %@" = "Edit %@";
 "Edit Calendar" = "Edit Calendar";
 "Edit Event" = "Edit Event";
+"Edit recurring event?" = "Edit recurring event?";
 "Edit Task" = "Edit Task";
 "English" = "English";
 "Event could not be found." = "Event could not be found.";
@@ -99,12 +103,14 @@
 "On the..." = "On the...";
 "Only write-only access is available, so calendars cannot be listed." = "Only write-only access is available, so calendars cannot be listed.";
 "Only write-only calendar access is available, so existing events cannot be read." = "Only write-only calendar access is available, so existing events cannot be read.";
+"Only This Event" = "Only This Event";
 "Original name: %@" = "Original name: %@";
 "Mark Completed" = "Mark Completed";
 "Mark Uncompleted" = "Mark Uncompleted";
 "Private" = "Private";
 "Public" = "Public";
 "Remove Attachment" = "Remove Attachment";
+"Remove Video Call" = "Remove Video Call";
 "Repeat" = "Repeat";
 "Reset to Original Color" = "Reset to Original Color";
 "Reset to Original Name" = "Reset to Original Name";
@@ -127,6 +133,7 @@
 "This event repeats every %d %@." = "This event repeats every %d %@.";
 "This event repeats every day." = "This event repeats every day.";
 "This event repeats every month." = "This event repeats every month.";
+"This and Future Events" = "This and Future Events";
 "This event repeats every week." = "This event repeats every week.";
 "This event repeats every year." = "This event repeats every year.";
 "Title" = "Title";
@@ -136,6 +143,7 @@
 "Untitled" = "Untitled";
 "Untitled Reminder" = "Untitled Reminder";
 "Use a web or file URL. Providers may reject attachments they cannot access." = "Use a web or file URL. Providers may reject attachments they cannot access.";
+"Use a video meeting URL." = "Use a video meeting URL.";
 "Use Device Time Zone" = "Use Device Time Zone";
 "Video Call" = "Video Call";
 "Visibility" = "Visibility";

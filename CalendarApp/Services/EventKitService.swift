@@ -120,6 +120,7 @@ final class EventKitService: @unchecked Sendable {
                     return CalendarEvent(
                         id: event.eventIdentifier ?? UUID().uuidString,
                         calendarID: Self.sourceID(for: event.calendar, kind: .event),
+                        recurringEventID: event.recurrenceRules?.isEmpty == false ? event.calendarItemIdentifier : nil,
                         kind: .event,
                         title: event.title?.isEmpty == false ? event.title : L.tr("Untitled", language: .system),
                         location: event.location,
@@ -203,6 +204,7 @@ final class EventKitService: @unchecked Sendable {
                 let event = CalendarEvent(
                     id: reminder.calendarItemIdentifier,
                     calendarID: Self.sourceID(for: reminder.calendar, kind: .reminder),
+                    recurringEventID: nil,
                     kind: .reminder,
                     title: reminder.title.isEmpty ? L.tr("Untitled Reminder", language: .system) : reminder.title,
                     location: nil,
@@ -267,7 +269,8 @@ final class EventKitService: @unchecked Sendable {
         attachmentURL: String? = nil,
         alertOption: EventAlertOption = .none,
         visibility: EventVisibilityOption = .default,
-        availability: EventAvailabilityOption = .busy
+        availability: EventAvailabilityOption = .busy,
+        editScope: RecurringEventEditScope = .thisEvent
     ) throws {
         guard let event = eventStore.event(withIdentifier: eventID) else {
             throw NSError(domain: "EventKitService", code: 2, userInfo: [NSLocalizedDescriptionKey: L.tr("Event could not be found.", language: .system)])
@@ -290,15 +293,28 @@ final class EventKitService: @unchecked Sendable {
         event.url = attachmentURL.flatMap(URL.init(string:))
         event.availability = ekAvailability(for: availability)
 
-        try eventStore.save(event, span: .thisEvent)
+        try eventStore.save(event, span: editScope.eventKitSpan)
     }
 
-    func deleteEvent(eventID: String) throws {
+    func deleteEvent(
+        eventID: String,
+        recurringEventID: String? = nil,
+        deleteScope: RecurringEventDeleteScope = .thisEvent
+    ) throws {
         guard let event = eventStore.event(withIdentifier: eventID) else {
             throw NSError(domain: "EventKitService", code: 2, userInfo: [NSLocalizedDescriptionKey: L.tr("Event could not be found.", language: .system)])
         }
 
-        try eventStore.remove(event, span: .thisEvent)
+        let eventToDelete: EKEvent
+        if deleteScope == .allEvents,
+           let recurringEventID,
+           let recurringEvent = eventStore.calendarItem(withIdentifier: recurringEventID) as? EKEvent {
+            eventToDelete = recurringEvent
+        } else {
+            eventToDelete = event
+        }
+
+        try eventStore.remove(eventToDelete, span: deleteScope.eventKitSpan)
     }
 
     func createReminder(
@@ -519,6 +535,24 @@ private final class ReminderFetchCompletion: @unchecked Sendable {
         lock.unlock()
 
         continuation?.resume(returning: events)
+    }
+}
+
+private extension RecurringEventEditScope {
+    var eventKitSpan: EKSpan {
+        switch self {
+        case .thisEvent: return .thisEvent
+        case .futureEvents: return .futureEvents
+        }
+    }
+}
+
+private extension RecurringEventDeleteScope {
+    var eventKitSpan: EKSpan {
+        switch self {
+        case .thisEvent: return .thisEvent
+        case .allEvents: return .futureEvents
+        }
     }
 }
 

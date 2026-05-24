@@ -151,14 +151,14 @@ struct CalendarRootView: View {
                 mode: .create,
                 calendars: viewModel.visibleWritableCalendars + viewModel.visibleWritableTaskCalendars,
                 seedDate: seedDate
-            ) { draft in
+            ) { draft, _ in
                 if draft.kind == .reminder {
                     await viewModel.createTask(
                         title: draft.title,
                         dueDate: draft.startDate,
                         isAllDay: draft.isAllDay,
                         calendarID: draft.calendarID,
-                        notes: draft.notes.isEmpty ? nil : draft.notes
+                        notes: draft.notesForStorage.isEmpty ? nil : draft.notesForStorage
                     )
                 } else {
                     await viewModel.createEvent(
@@ -168,7 +168,7 @@ struct CalendarRootView: View {
                         isAllDay: draft.isAllDay,
                         calendarID: draft.calendarID,
                         location: draft.location.isEmpty ? nil : draft.location,
-                        notes: draft.notes.isEmpty ? nil : draft.notes,
+                        notes: draft.notesForStorage.isEmpty ? nil : draft.notesForStorage,
                         repeatOption: draft.repeatOption,
                         invitees: draft.invitees,
                         attachmentURL: draft.attachmentURL.isEmpty ? nil : draft.attachmentURL,
@@ -183,7 +183,7 @@ struct CalendarRootView: View {
                 mode: .edit(eventID: event.id),
                 calendars: viewModel.editableCalendars(for: event),
                 existingEvent: event,
-                onSave: { draft in
+                onSave: { draft, editScope in
                     if event.kind == .reminder {
                         await viewModel.updateTask(
                             eventID: event.id,
@@ -191,7 +191,7 @@ struct CalendarRootView: View {
                             dueDate: draft.startDate,
                             isAllDay: draft.isAllDay,
                             calendarID: event.calendarID,
-                            notes: draft.notes.isEmpty ? nil : draft.notes
+                            notes: draft.notesForStorage.isEmpty ? nil : draft.notesForStorage
                         )
                     } else {
                         await viewModel.updateEvent(
@@ -202,18 +202,25 @@ struct CalendarRootView: View {
                             isAllDay: draft.isAllDay,
                             calendarID: draft.calendarID,
                             location: draft.location.isEmpty ? nil : draft.location,
-                            notes: draft.notes.isEmpty ? nil : draft.notes,
+                            notes: draft.notesForStorage.isEmpty ? nil : draft.notesForStorage,
                             repeatOption: draft.repeatOption,
                             invitees: draft.invitees,
                             attachmentURL: draft.attachmentURL.isEmpty ? nil : draft.attachmentURL,
                             alertOption: draft.alertOption,
                             visibility: draft.visibility,
-                            availability: draft.availability
+                            availability: draft.availability,
+                            recurringEventID: event.recurringEventID,
+                            editScope: editScope
                         )
                     }
                 },
-                onDelete: event.kind == .event && viewModel.isCalendarWritable(event.calendarID) ? {
-                    await viewModel.deleteEvent(eventID: event.id, calendarID: event.calendarID)
+                onDelete: event.kind == .event && viewModel.isCalendarWritable(event.calendarID) ? { deleteScope in
+                    await viewModel.deleteEvent(
+                        eventID: event.id,
+                        calendarID: event.calendarID,
+                        recurringEventID: event.recurringEventID,
+                        deleteScope: deleteScope
+                    )
                 } : nil,
                 onToggleTaskCompletion: event.kind == .reminder ? {
                     await viewModel.setTaskCompletion(eventID: event.id, calendarID: event.calendarID, isCompleted: !event.isCompleted)

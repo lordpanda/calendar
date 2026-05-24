@@ -176,6 +176,7 @@ final class GoogleCalendarService {
                     return CalendarEvent(
                         id: item.id,
                         calendarID: calendar.id,
+                        recurringEventID: item.recurringEventId,
                         kind: .event,
                         title: item.summary?.isEmpty == false ? item.summary! : L.tr("Untitled", language: .system),
                         location: item.location,
@@ -299,6 +300,7 @@ final class GoogleCalendarService {
                     return CalendarEvent(
                         id: "google-task:\(taskListID):\(item.id)",
                         calendarID: taskList.id,
+                        recurringEventID: nil,
                         kind: .reminder,
                         title: item.title?.isEmpty == false ? item.title! : L.tr("Untitled Reminder", language: .system),
                         location: nil,
@@ -372,8 +374,11 @@ final class GoogleCalendarService {
         attachmentURL: String? = nil,
         alertOption: EventAlertOption = .none,
         visibility: EventVisibilityOption = .default,
-        availability: EventAvailabilityOption = .busy
+        availability: EventAvailabilityOption = .busy,
+        recurringEventID: String? = nil,
+        editScope: RecurringEventEditScope = .thisEvent
     ) async throws {
+        let targetEventID = editScope == .futureEvents ? (recurringEventID ?? eventID) : eventID
         let payload = GoogleCreateEventRequest(
             summary: title.isEmpty ? L.tr("Untitled", language: .system) : title,
             location: location,
@@ -394,16 +399,22 @@ final class GoogleCalendarService {
 
         let body = try JSONEncoder().encode(payload)
         _ = try await authorizedRequest(
-            path: "/calendars/\(calendarID.urlPathEncoded)/events/\(eventID.urlPathEncoded)",
+            path: "/calendars/\(calendarID.urlPathEncoded)/events/\(targetEventID.urlPathEncoded)",
             queryItems: attachmentURL == nil ? [] : [URLQueryItem(name: "supportsAttachments", value: "true")],
             method: "PUT",
             body: body
         )
     }
 
-    func deleteEvent(eventID: String, calendarID: String) async throws {
+    func deleteEvent(
+        eventID: String,
+        calendarID: String,
+        recurringEventID: String? = nil,
+        deleteScope: RecurringEventDeleteScope = .thisEvent
+    ) async throws {
+        let targetEventID = deleteScope == .allEvents ? (recurringEventID ?? eventID) : eventID
         _ = try await authorizedRequest(
-            path: "/calendars/\(calendarID.urlPathEncoded)/events/\(eventID.urlPathEncoded)",
+            path: "/calendars/\(calendarID.urlPathEncoded)/events/\(targetEventID.urlPathEncoded)",
             queryItems: [],
             method: "DELETE"
         )
@@ -722,6 +733,7 @@ private struct EventListResponse: Decodable {
 
 private struct GoogleCalendarEventItem: Decodable {
     let id: String
+    let recurringEventId: String?
     let summary: String?
     let location: String?
     let description: String?
