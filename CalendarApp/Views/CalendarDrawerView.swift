@@ -447,9 +447,7 @@ private struct CalendarSettingsView: View {
         value: String,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        Menu {
-            content()
-        } label: {
+        ZStack {
             HStack(spacing: 12) {
                 Text(title)
                     .font(.body)
@@ -469,8 +467,15 @@ private struct CalendarSettingsView: View {
             }
             .frame(minHeight: 52)
             .padding(.horizontal, 16)
+
+            Menu {
+                content()
+            } label: {
+                Color.clear
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 }
 
