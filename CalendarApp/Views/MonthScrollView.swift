@@ -31,6 +31,7 @@ struct MonthScrollView: View {
                             month: month,
                             calendar: viewModel.displayCalendar,
                             showsWeekNumbers: viewModel.settings.showsWeekNumbers,
+                            contentScale: viewModel.settings.monthContentScale.factor,
                             eventsForDay: { viewModel.events(on: $0) },
                             colorForEvent: { viewModel.color(for: $0) },
                             onSelectDay: { day in
@@ -51,6 +52,7 @@ struct MonthScrollView: View {
             HeaderView(
                 year: viewModel.visibleYear,
                 monthTitle: viewModel.currentMonthTitle,
+                contentScale: viewModel.settings.monthContentScale.factor,
                 onShowYearOverview: { isYearOverviewPresented.toggle() },
                 onSearch: { isSearchPresented = true },
                 onMenu: { isDrawerPresented = true }
@@ -82,9 +84,11 @@ struct MonthScrollView: View {
 private struct HeaderView: View {
     let year: Int
     let monthTitle: String
+    let contentScale: CGFloat
     let onShowYearOverview: () -> Void
     let onSearch: () -> Void
     let onMenu: () -> Void
+    @Environment(\.appLanguage) private var language
 
     var body: some View {
         HStack(alignment: .center) {
@@ -104,7 +108,9 @@ private struct HeaderView: View {
             Spacer()
 
             Text(monthTitle)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 17 * contentScale, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
 
             Spacer()
 
@@ -116,7 +122,7 @@ private struct HeaderView: View {
                 .buttonStyle(.plain)
                 .frame(width: 36, height: 44)
                 .contentShape(Rectangle())
-                .accessibilityLabel("Search")
+                .accessibilityLabel(L.tr("Search", language: language))
 
                 Button(action: onMenu) {
                     Image(systemName: "line.3.horizontal")
@@ -125,7 +131,7 @@ private struct HeaderView: View {
                 .buttonStyle(.plain)
                 .frame(width: 36, height: 44)
                 .contentShape(Rectangle())
-                .accessibilityLabel("Calendars and settings")
+                .accessibilityLabel(L.tr("Calendars and settings", language: language))
             }
             .foregroundStyle(.primary)
             .frame(height: 44)
@@ -236,6 +242,7 @@ private struct MiniMonthView: View {
     let calendar: Calendar
     let isSelectedMonth: Bool
     let onSelect: () -> Void
+    @Environment(\.appLanguage) private var language
 
     var body: some View {
         Button(action: onSelect) {
@@ -273,7 +280,7 @@ private struct MiniMonthView: View {
     }
 
     private var monthTitle: String {
-        month.formatted(.dateTime.month(.abbreviated))
+        month.formatted(.dateTime.month(.abbreviated).locale(language.locale))
     }
 
     private var days: [Date?] {
@@ -295,6 +302,7 @@ private struct EventSearchView: View {
     let events: [CalendarEvent]
     let colorForEvent: (CalendarEvent) -> String
     let onSelectEvent: (CalendarEvent) -> Void
+    @Environment(\.appLanguage) private var language
     @State private var query = ""
 
     private var filteredEvents: [CalendarEvent] {
@@ -337,17 +345,17 @@ private struct EventSearchView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .navigationTitle("Search")
+            .navigationTitle(L.tr("Search", language: language))
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))
         }
     }
 
     private func subtitle(for event: CalendarEvent) -> String {
         if event.isAllDay {
-            return event.startDate.formatted(.dateTime.month(.abbreviated).day())
+            return event.startDate.formatted(.dateTime.month(.abbreviated).day().locale(language.locale))
         }
 
-        return event.startDate.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        return event.startDate.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(language.locale))
     }
 }
 
@@ -355,6 +363,7 @@ private struct MonthSectionView: View {
     let month: CalendarMonth
     let calendar: Calendar
     let showsWeekNumbers: Bool
+    let contentScale: CGFloat
     let eventsForDay: (Date) -> [CalendarEvent]
     let colorForEvent: (CalendarEvent) -> String
     let onSelectDay: (CalendarDay) -> Void
@@ -365,8 +374,12 @@ private struct MonthSectionView: View {
             let headerTop = proxy.safeAreaInsets.top + 57
 
             VStack(alignment: .leading, spacing: 0) {
-                WeekdayHeaderView(calendar: calendar, showsWeekNumbers: showsWeekNumbers)
-                    .frame(height: 22)
+                WeekdayHeaderView(
+                    calendar: calendar,
+                    showsWeekNumbers: showsWeekNumbers,
+                    contentScale: contentScale
+                )
+                .frame(height: 22 * contentScale)
 
                 VStack(spacing: 0) {
                     ForEach(Array(month.weeks.enumerated()), id: \.offset) { index, week in
@@ -377,6 +390,7 @@ private struct MonthSectionView: View {
                             weekNumber: month.weekNumbers[index],
                             showsWeekNumbers: showsWeekNumbers,
                             calendar: calendar,
+                            contentScale: contentScale,
                             eventsForDay: eventsForDay,
                             colorForEvent: colorForEvent,
                             onSelectDay: onSelectDay,
@@ -411,19 +425,21 @@ private struct MonthSectionView: View {
 private struct WeekdayHeaderView: View {
     let calendar: Calendar
     let showsWeekNumbers: Bool
+    let contentScale: CGFloat
+    @Environment(\.appLanguage) private var language
 
     var body: some View {
         HStack(spacing: 0) {
             if showsWeekNumbers {
-                Text("W")
-                    .font(.system(size: 11, weight: .medium))
+                Text(L.tr("W", language: language))
+                    .font(.system(size: 11 * contentScale, weight: .medium))
                     .foregroundStyle(.primary)
                     .frame(width: 28)
             }
 
             ForEach(reorderedSymbols, id: \.self) { symbol in
                 Text(String(symbol.prefix(1)))
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 11 * contentScale, weight: .medium))
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
             }
@@ -431,7 +447,9 @@ private struct WeekdayHeaderView: View {
     }
 
     private var reorderedSymbols: [String] {
-        let symbols = calendar.shortStandaloneWeekdaySymbols
+        let formatter = DateFormatter()
+        formatter.locale = language.locale
+        let symbols = formatter.shortStandaloneWeekdaySymbols ?? calendar.shortStandaloneWeekdaySymbols
         return (0..<7).map { offset in
             let weekday = ((calendar.firstWeekday - 1 + offset) % 7) + 1
             return symbols[max(min(weekday - 1, symbols.count - 1), 0)]
@@ -444,6 +462,7 @@ private struct WeekRowView: View {
     let weekNumber: Int
     let showsWeekNumbers: Bool
     let calendar: Calendar
+    let contentScale: CGFloat
     let eventsForDay: (Date) -> [CalendarEvent]
     let colorForEvent: (CalendarEvent) -> String
     let onSelectDay: (CalendarDay) -> Void
@@ -464,6 +483,7 @@ private struct WeekRowView: View {
                         DayCellView(
                             day: day,
                             calendar: calendar,
+                            contentScale: contentScale,
                             onSelectDay: { onSelectDay(day) }
                         )
                     }
@@ -477,18 +497,19 @@ private struct WeekRowView: View {
                             event: segment.event,
                             colorHex: colorForEvent(segment.event),
                             leadingStyle: segment.startsInWeek ? .rounded : .square,
-                            trailingStyle: segment.endsInWeek ? .rounded : .square
+                            trailingStyle: segment.endsInWeek ? .rounded : .square,
+                            contentScale: contentScale
                         )
-                        .frame(width: width, height: Self.eventHeight, alignment: .leading)
+                        .frame(width: width, height: eventHeight, alignment: .leading)
                     }
                     .buttonStyle(.plain)
                     .frame(
                         width: width,
-                        height: Self.eventHeight
+                        height: eventHeight
                     )
                     .offset(
                         x: segmentX(segment, totalWidth: proxy.size.width),
-                        y: Self.eventTop + CGFloat(segment.slot) * Self.eventStride
+                        y: eventTop + CGFloat(segment.slot) * eventStride
                     )
                 }
             }
@@ -497,9 +518,9 @@ private struct WeekRowView: View {
         .clipped()
     }
 
-    private static let eventTop: CGFloat = 34
-    private static let eventHeight: CGFloat = 17
-    private static let eventStride: CGFloat = 20
+    private var eventTop: CGFloat { 32 + (contentScale - 1) * 20 }
+    private var eventHeight: CGFloat { 17 * contentScale }
+    private var eventStride: CGFloat { 20 * contentScale }
     private static let eventInset: CGFloat = 2
     private static let weekNumberWidth: CGFloat = 28
 
@@ -534,7 +555,17 @@ private struct WeekRowView: View {
     }
 
     private var visibleEventSegments: [WeekEventSegment] {
-        eventSegments.filter { $0.slot < 4 }
+        eventSegments.filter { $0.slot < visibleEventSlotCount }
+    }
+
+    private var visibleEventSlotCount: Int {
+        if contentScale >= 1.5 {
+            return 2
+        }
+        if contentScale >= 1.25 {
+            return 3
+        }
+        return 4
     }
 
     private func uniqueWeekEvents() -> [CalendarEvent] {
@@ -610,6 +641,7 @@ private struct WeekRowView: View {
 private struct DayCellView: View {
     let day: CalendarDay
     let calendar: Calendar
+    let contentScale: CGFloat
     let onSelectDay: () -> Void
 
     private var isToday: Bool {
@@ -623,8 +655,8 @@ private struct DayCellView: View {
         Button(action: onSelectDay) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(String(calendar.component(.day, from: day.date)))
-                    .font(.system(size: 13, weight: .medium))
-                    .frame(width: 28, height: 28)
+                    .font(.system(size: 13 * contentScale, weight: .medium))
+                    .frame(width: 28 * contentScale, height: 28 * contentScale)
                     .background {
                         if isToday {
                             Circle().fill(Self.todayColor)
@@ -676,6 +708,7 @@ private struct EventBarView: View {
     let colorHex: String
     let leadingStyle: EventBarEdgeStyle
     let trailingStyle: EventBarEdgeStyle
+    let contentScale: CGFloat
 
     private var color: Color {
         if event.kind == .reminder {
@@ -696,18 +729,33 @@ private struct EventBarView: View {
             .fill(color)
 
             GeometryReader { proxy in
-                Text(event.title)
-                    .font(.system(size: 11, weight: .medium))
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .foregroundStyle(.white)
-                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
-                    .clipped()
+                HStack(spacing: 2) {
+                    if event.kind == .reminder {
+                        Image(systemName: "checkmark.circle")
+                            .font(.system(size: 10 * contentScale, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 11 * contentScale, height: eventHeight)
+                    }
+
+                    Text(event.title)
+                        .font(.system(size: 11 * contentScale, weight: .medium))
+                        .lineLimit(1)
+                        .strikethrough(event.isCompleted, color: .white)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .foregroundStyle(.white)
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
+                .clipped()
             }
-            .padding(.horizontal, 2)
-            .frame(height: 17)
+            .padding(.horizontal, event.kind == .reminder ? 3 : 2)
+            .frame(height: eventHeight)
         }
-        .frame(height: 17, alignment: .leading)
+        .frame(height: eventHeight, alignment: .leading)
+        .opacity(event.isCompleted ? 0.55 : 1)
         .accessibilityLabel(event.title)
+    }
+
+    private var eventHeight: CGFloat {
+        17 * contentScale
     }
 }

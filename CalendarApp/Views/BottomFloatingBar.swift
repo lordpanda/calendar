@@ -4,11 +4,12 @@ struct BottomFloatingBar: View {
     let onToday: () -> Void
     let onAdd: () -> Void
     let isAddEnabled: Bool
+    @Environment(\.appLanguage) private var language
 
     var body: some View {
         HStack {
             Button(action: onToday) {
-                Text("Today")
+                Text(L.tr("Today", language: language))
                     .font(.system(size: 17, weight: .medium))
             }
             .buttonStyle(.plain)
@@ -28,7 +29,7 @@ struct BottomFloatingBar: View {
             .foregroundStyle(.primary)
             .glassCircle(size: 48)
             .opacity(isAddEnabled ? 1 : 0.45)
-            .accessibilityLabel("Add event")
+            .accessibilityLabel(L.tr("Add event", language: language))
         }
         .frame(maxWidth: .infinity)
         .background {
