@@ -32,3 +32,6 @@ fastlane/test_output/
 # Local environment files
 .env
 .env.*
+Configs/Secrets.xcconfig
+Configs/GoogleOAuthClient.plist
+CalendarApp/Resources/GoogleOAuthClient.plist

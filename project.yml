@@ -14,6 +14,12 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "26.0"
+    configFiles:
+      Debug: Configs/Base.xcconfig
+      Release: Configs/Base.xcconfig
+    dependencies:
+      - package: GoogleSignIn-iOS
+        product: GoogleSignIn
     sources:
       - path: CalendarApp
     resources:
@@ -24,12 +30,23 @@ targets:
         PRODUCT_NAME: Calendar
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        GENERATE_INFOPLIST_FILE: YES
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: CalendarApp/Resources/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Calendar
+        INFOPLIST_KEY_CFBundleURLTypes_0_CFBundleTypeRole: Editor
+        INFOPLIST_KEY_CFBundleURLTypes_0_CFBundleURLSchemes_0: $(GID_REVERSED_CLIENT_ID)
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: Calendar needs full calendar access to sync and edit iCloud events.
         INFOPLIST_KEY_NSCalendarsUsageDescription: Calendar needs access to show and manage your events.
+        INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: Calendar needs reminder access to show your reminders alongside calendar events.
+        INFOPLIST_KEY_NSRemindersUsageDescription: Calendar needs access to show your reminders alongside calendar events.
+        INFOPLIST_KEY_GIDClientID: $(GID_CLIENT_ID)
+        INFOPLIST_KEY_GIDServerClientID: $(GID_SERVER_CLIENT_ID)
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         IPHONEOS_DEPLOYMENT_TARGET: "26.0"
         TARGETED_DEVICE_FAMILY: "1,2"
+packages:
+  GoogleSignIn-iOS:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 9.0.0

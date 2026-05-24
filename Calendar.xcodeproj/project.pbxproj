@@ -10,30 +10,52 @@
 		07589B4574D2E0DBCC6277A8 /* CalendarTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C9B592659D1C55FAD21757 /* CalendarTheme.swift */; };
 		383F3DF049CB0B5BDCBA64AB /* BottomFloatingBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37467D0FAF52E2D41D1B0C1A /* BottomFloatingBar.swift */; };
 		3BC614A5ECC5564089549217 /* CalendarDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B954FF6ECAE840EEEA12887B /* CalendarDrawerView.swift */; };
+		4F1AD0B8058FB2EE47815837 /* EventEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114CEB7FB8BBCE7AEC287644 /* EventEditView.swift */; };
 		5EF0B06111EFB16449A58BCB /* DayScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C1EC1E9155492DF1E61662 /* DayScheduleView.swift */; };
 		950C41634B3660A4CF82A4D2 /* EventKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203643B21D846936D1D398E7 /* EventKitService.swift */; };
 		A5FE55D83F4D91C43E7748FC /* MonthScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9060AF03A41B227E81C10601 /* MonthScrollView.swift */; };
 		B58EE7CD4D9C96E794C98BCB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4567A84538C180727EC7247 /* Assets.xcassets */; };
+		B9D16E3B7A8C43A68C0F5A41 /* GoogleOAuthClient.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0DF5C187AF8D4070B4056311 /* GoogleOAuthClient.plist */; };
+		C8F607D49A22213AB595267A /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = AB47728FA9B0BD8B03B22B98 /* GoogleSignIn */; };
+		CBD3535A82F3864CA8C13A67 /* CalendarPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C3635B57351B4CFDF476C7 /* CalendarPreferencesStore.swift */; };
 		D48302648FA3791C2BC958D9 /* CalendarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23DF451BA2C0B2D86AF30828 /* CalendarViewModel.swift */; };
 		E2C9A6C2240E34B84D159077 /* CalendarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1545805F509066997BE9EFF /* CalendarApp.swift */; };
+		E6428F633043B551C6AABBC5 /* GoogleCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFFDE1C2D1A117FB13A3B5F /* GoogleCalendarService.swift */; };
 		E7FF6F440517B541639AF4FF /* CalendarRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA39E749BC96455092AACA52 /* CalendarRootView.swift */; };
 		FEBD7D12C3A679D4116916ED /* CalendarModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C409AE44311035AD5740FC3 /* CalendarModels.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		08C1EC1E9155492DF1E61662 /* DayScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayScheduleView.swift; sourceTree = "<group>"; };
+		0DF5C187AF8D4070B4056311 /* GoogleOAuthClient.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = GoogleOAuthClient.plist; sourceTree = "<group>"; };
+		0F87E96180514B84A54CF80B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		114CEB7FB8BBCE7AEC287644 /* EventEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventEditView.swift; sourceTree = "<group>"; };
 		14C9B592659D1C55FAD21757 /* CalendarTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTheme.swift; sourceTree = "<group>"; };
 		1E6AA1C16D5AAE616B599B46 /* Calendar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Calendar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		203643B21D846936D1D398E7 /* EventKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitService.swift; sourceTree = "<group>"; };
 		23DF451BA2C0B2D86AF30828 /* CalendarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViewModel.swift; sourceTree = "<group>"; };
 		37467D0FAF52E2D41D1B0C1A /* BottomFloatingBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomFloatingBar.swift; sourceTree = "<group>"; };
+		479B22C40E6B32F3C18A6826 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		7DFFDE1C2D1A117FB13A3B5F /* GoogleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarService.swift; sourceTree = "<group>"; };
 		8C409AE44311035AD5740FC3 /* CalendarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarModels.swift; sourceTree = "<group>"; };
 		9060AF03A41B227E81C10601 /* MonthScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthScrollView.swift; sourceTree = "<group>"; };
+		B1C3635B57351B4CFDF476C7 /* CalendarPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPreferencesStore.swift; sourceTree = "<group>"; };
 		B954FF6ECAE840EEEA12887B /* CalendarDrawerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDrawerView.swift; sourceTree = "<group>"; };
 		D4567A84538C180727EC7247 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F1545805F509066997BE9EFF /* CalendarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarApp.swift; sourceTree = "<group>"; };
 		FA39E749BC96455092AACA52 /* CalendarRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarRootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7DCC033E5BC94B6CD682E9EA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C8F607D49A22213AB595267A /* GoogleSignIn in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		20B0714F1392E06E79DF7C36 /* ViewModels */ = {
@@ -47,9 +69,19 @@
 		3CB1D75B963057082F094576 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				B1C3635B57351B4CFDF476C7 /* CalendarPreferencesStore.swift */,
 				203643B21D846936D1D398E7 /* EventKitService.swift */,
+				7DFFDE1C2D1A117FB13A3B5F /* GoogleCalendarService.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		3E7272047914F85F2C300EEF /* Configs */ = {
+			isa = PBXGroup;
+			children = (
+				479B22C40E6B32F3C18A6826 /* Base.xcconfig */,
+			);
+			path = Configs;
 			sourceTree = "<group>";
 		};
 		504A466D37423A1DE6051F4C /* Products */ = {
@@ -74,6 +106,7 @@
 				37467D0FAF52E2D41D1B0C1A /* BottomFloatingBar.swift */,
 				B954FF6ECAE840EEEA12887B /* CalendarDrawerView.swift */,
 				08C1EC1E9155492DF1E61662 /* DayScheduleView.swift */,
+				114CEB7FB8BBCE7AEC287644 /* EventEditView.swift */,
 				9060AF03A41B227E81C10601 /* MonthScrollView.swift */,
 			);
 			path = Views;
@@ -91,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				A2460DBFAC7AFAE3C984FFA9 /* CalendarApp */,
+				3E7272047914F85F2C300EEF /* Configs */,
 				504A466D37423A1DE6051F4C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -122,6 +156,8 @@
 			isa = PBXGroup;
 			children = (
 				D4567A84538C180727EC7247 /* Assets.xcassets */,
+				0DF5C187AF8D4070B4056311 /* GoogleOAuthClient.plist */,
+				0F87E96180514B84A54CF80B /* Info.plist */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -135,6 +171,7 @@
 			buildPhases = (
 				C5BB4B652ADFD541C62C199D /* Sources */,
 				CD36FB3B37F65F90FB90F6D2 /* Resources */,
+				7DCC033E5BC94B6CD682E9EA /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -142,6 +179,7 @@
 			);
 			name = Calendar;
 			packageProductDependencies = (
+				AB47728FA9B0BD8B03B22B98 /* GoogleSignIn */,
 			);
 			productName = Calendar;
 			productReference = 1E6AA1C16D5AAE616B599B46 /* Calendar.app */;
@@ -166,6 +204,9 @@
 			);
 			mainGroup = 99FE590CF614FD3B1BC235A0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E75835707EF8B27412C6158A /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -180,6 +221,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B58EE7CD4D9C96E794C98BCB /* Assets.xcassets in Resources */,
+				B9D16E3B7A8C43A68C0F5A41 /* GoogleOAuthClient.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -194,11 +236,14 @@
 				E2C9A6C2240E34B84D159077 /* CalendarApp.swift in Sources */,
 				3BC614A5ECC5564089549217 /* CalendarDrawerView.swift in Sources */,
 				FEBD7D12C3A679D4116916ED /* CalendarModels.swift in Sources */,
+				CBD3535A82F3864CA8C13A67 /* CalendarPreferencesStore.swift in Sources */,
 				E7FF6F440517B541639AF4FF /* CalendarRootView.swift in Sources */,
 				07589B4574D2E0DBCC6277A8 /* CalendarTheme.swift in Sources */,
 				D48302648FA3791C2BC958D9 /* CalendarViewModel.swift in Sources */,
 				5EF0B06111EFB16449A58BCB /* DayScheduleView.swift in Sources */,
+				4F1AD0B8058FB2EE47815837 /* EventEditView.swift in Sources */,
 				950C41634B3660A4CF82A4D2 /* EventKitService.swift in Sources */,
+				E6428F633043B551C6AABBC5 /* GoogleCalendarService.swift in Sources */,
 				A5FE55D83F4D91C43E7748FC /* MonthScrollView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -208,15 +253,23 @@
 /* Begin XCBuildConfiguration section */
 		124E6769CA5E4F71021C616C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 479B22C40E6B32F3C18A6826 /* Base.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 2CFSFK9M49;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CalendarApp/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendar;
+				INFOPLIST_KEY_CFBundleURLTypes_0_CFBundleTypeRole = Editor;
+				INFOPLIST_KEY_CFBundleURLTypes_0_CFBundleURLSchemes_0 = "$(GID_REVERSED_CLIENT_ID)";
+				INFOPLIST_KEY_GIDClientID = "$(GID_CLIENT_ID)";
+				INFOPLIST_KEY_GIDServerClientID = "$(GID_SERVER_CLIENT_ID)";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Calendar needs full calendar access to sync and edit iCloud events.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Calendar needs access to show and manage your events.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Calendar needs reminder access to show your reminders alongside calendar events.";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "Calendar needs access to show your reminders alongside calendar events.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -357,15 +410,23 @@
 		};
 		A200D47EF065EC83C4EFB955 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 479B22C40E6B32F3C18A6826 /* Base.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 2CFSFK9M49;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CalendarApp/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendar;
+				INFOPLIST_KEY_CFBundleURLTypes_0_CFBundleTypeRole = Editor;
+				INFOPLIST_KEY_CFBundleURLTypes_0_CFBundleURLSchemes_0 = "$(GID_REVERSED_CLIENT_ID)";
+				INFOPLIST_KEY_GIDClientID = "$(GID_CLIENT_ID)";
+				INFOPLIST_KEY_GIDServerClientID = "$(GID_SERVER_CLIENT_ID)";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Calendar needs full calendar access to sync and edit iCloud events.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Calendar needs access to show and manage your events.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Calendar needs reminder access to show your reminders alongside calendar events.";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "Calendar needs access to show your reminders alongside calendar events.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -403,6 +464,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E75835707EF8B27412C6158A /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AB47728FA9B0BD8B03B22B98 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E75835707EF8B27412C6158A /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 572E7F2405063E561EB1DBA8 /* Project object */;
 }

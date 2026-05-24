@@ -1,0 +1,5 @@
+GID_CLIENT_ID =
+GID_SERVER_CLIENT_ID =
+GID_REVERSED_CLIENT_ID =
+
+#include? "Secrets.xcconfig"

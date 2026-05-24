@@ -11,13 +11,14 @@
 - [x] Hamburger drawer shell with explicit placeholder status
 - [x] Empty-state UI with no fake calendars or events
 - [x] EventKit permission flow and local calendar/event read
+- [x] EventKit store-change observation and reload
+- [x] Minimal EventKit-backed event creation sheet
 - [x] Simulator Debug build verification
 
 ## Next
 
-- [ ] Replace finite month list with true infinite month paging
-- [ ] Add EventKit store-change observation and reload on external edits
-- [ ] Add EventEditView shell and real create/edit/delete flow
+- [x] Replace finite month list with true infinite month paging
+- [ ] Add real edit/delete flow for EventKit events
 - [ ] Introduce SwiftData schema for cached accounts, calendars, events, recurrence
 - [ ] Add unit tests for month grid calculation and timed-event layout
 - [ ] Implement calendar appearance settings

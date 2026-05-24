@@ -3,8 +3,11 @@ import SwiftUI
 struct DayScheduleView: View {
     let date: Date
     let events: [CalendarEvent]
+    let colorForEvent: (CalendarEvent) -> String
     let onPreviousDay: () -> Void
     let onNextDay: () -> Void
+    let onCreateEvent: () -> Void
+    let onSelectEvent: (CalendarEvent) -> Void
 
     @Environment(\.dismiss) private var dismiss
     private let hourHeight: CGFloat = 60
@@ -14,17 +17,27 @@ struct DayScheduleView: View {
             VStack(spacing: 0) {
                 allDayEvents
 
-                ScrollView {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .topLeading) {
-                            hourGrid
-                            eventBlocks(availableWidth: max(0, geometry.size.width - 58))
-                            currentTimeIndicator
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        GeometryReader { geometry in
+                            ZStack(alignment: .topLeading) {
+                                hourGrid
+                                eventBlocks(availableWidth: max(0, geometry.size.width - 58))
+                                currentTimeIndicator
+                                initialScrollAnchor
+                            }
                         }
+                        .frame(height: hourHeight * 24)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .id("timeline")
                     }
-                    .frame(height: hourHeight * 24)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                    .onAppear {
+                        scrollToInitialPosition(with: proxy)
+                    }
+                    .onChange(of: date) { _, _ in
+                        scrollToInitialPosition(with: proxy)
+                    }
                 }
                 .gesture(
                     DragGesture(minimumDistance: 35)
@@ -40,6 +53,14 @@ struct DayScheduleView: View {
             .navigationTitle(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        onCreateEvent()
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Close") {
                         dismiss()
@@ -55,18 +76,38 @@ struct DayScheduleView: View {
         return VStack(alignment: .leading, spacing: 6) {
             if !allDay.isEmpty {
                 ForEach(allDay) { event in
-                    Text(event.title)
-                        .font(.caption.weight(.semibold))
+                    Button {
+                        onSelectEvent(event)
+                    } label: {
+                        HStack(spacing: 6) {
+                            if event.kind == .reminder {
+                                Image(systemName: "checkmark.circle.fill")
+                            }
+
+                            Text(event.title)
+                                .font(.caption.weight(.semibold))
+                        }
+                        .foregroundStyle(backgroundColor(for: event))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.accentColor.opacity(0.18), in: Capsule())
+                        .background(backgroundColor(for: event).opacity(0.18), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, allDay.isEmpty ? 0 : 10)
         .background(.thinMaterial)
+    }
+
+    private func backgroundColor(for event: CalendarEvent) -> Color {
+        if event.kind == .reminder {
+            return .orange
+        }
+
+        return Color(hex: colorForEvent(event)) ?? .accentColor
     }
 
     private var hourGrid: some View {
@@ -92,7 +133,11 @@ struct DayScheduleView: View {
         let timed = layout(events: events.filter { !$0.isAllDay }, availableWidth: availableWidth)
 
         return ForEach(timed) { item in
-            DayEventBlock(event: item.event)
+            DayEventBlock(
+                event: item.event,
+                color: backgroundColor(for: item.event),
+                onTap: { onSelectEvent(item.event) }
+            )
                 .frame(width: item.width, height: item.height)
                 .offset(x: 58 + item.x, y: item.y)
         }
@@ -139,6 +184,58 @@ struct DayScheduleView: View {
             )
         }
     }
+
+    private var initialScrollAnchor: some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: initialScrollY)
+
+            Color.clear
+                .frame(width: 1, height: 1)
+                .id(initialScrollAnchorID)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func scrollToInitialPosition(with proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(.snappy(duration: 0.25)) {
+                proxy.scrollTo(initialScrollAnchorID, anchor: .top)
+            }
+        }
+    }
+
+    private var initialScrollY: CGFloat {
+        if let firstTimedEvent {
+            return yOffset(for: firstTimedEvent.startDate)
+        }
+
+        if Calendar.current.isDateInToday(date) {
+            return yOffset(for: Date())
+        }
+
+        return hourHeight * 8
+    }
+
+    private var firstTimedEvent: CalendarEvent? {
+        events
+            .filter { !$0.isAllDay }
+            .sorted { $0.startDate < $1.startDate }
+            .first
+    }
+
+    private var initialScrollAnchorID: String {
+        "initial-scroll-anchor"
+    }
+
+    private func yOffset(for date: Date) -> CGFloat {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        let minutes = CGFloat((components.hour ?? 0) * 60 + (components.minute ?? 0))
+        return max(0, min(minutes / 60 * hourHeight, hourHeight * 24))
+    }
 }
 
 private struct PositionedEvent: Identifiable {
@@ -153,23 +250,35 @@ private struct PositionedEvent: Identifiable {
 
 private struct DayEventBlock: View {
     let event: CalendarEvent
+    let color: Color
+    let onTap: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(event.title)
-                .font(.caption.weight(.bold))
-                .lineLimit(2)
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    if event.kind == .reminder {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                    }
 
-            Text(event.startDate.formatted(.dateTime.hour().minute()))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
+                    Text(event.title)
+                        .font(.caption.weight(.bold))
+                        .lineLimit(nil)
+                }
+
+                Text(event.startDate.formatted(.dateTime.hour().minute()))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(color.opacity(0.22), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(color.opacity(0.45), lineWidth: 1)
+            }
         }
-        .padding(8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.accentColor.opacity(0.22), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.45), lineWidth: 1)
-        }
+        .buttonStyle(.plain)
     }
 }

@@ -3,19 +3,22 @@ import SwiftUI
 enum CalendarTheme {
     static let background = Color(.systemBackground)
     static let secondaryBackground = Color(.secondarySystemBackground)
-    static let separator = Color(.separator).opacity(0.42)
-    static let glassStroke = Color.white.opacity(0.35)
+    static let separator = Color(.separator).opacity(0.2)
+    static let mutedDay = Color(.systemGray6)
 }
 
 extension View {
-    func glassCapsule() -> some View {
+    func glassCapsule(horizontal: CGFloat = 16, vertical: CGFloat = 10) -> some View {
         self
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(.regularMaterial, in: Capsule())
-            .overlay {
-                Capsule().stroke(CalendarTheme.glassStroke, lineWidth: 0.8)
-            }
+            .padding(.horizontal, horizontal)
+            .padding(.vertical, vertical)
+            .glassEffect(in: Capsule())
+    }
+
+    func glassCircle(size: CGFloat = 44) -> some View {
+        self
+            .frame(width: size, height: size)
+            .glassEffect(in: Circle())
     }
 }
 
