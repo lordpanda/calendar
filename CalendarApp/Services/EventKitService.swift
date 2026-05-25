@@ -372,6 +372,14 @@ final class EventKitService: @unchecked Sendable {
         try eventStore.save(reminder, commit: true)
     }
 
+    func deleteReminder(reminderID: String) throws {
+        guard let reminder = eventStore.calendarItem(withIdentifier: reminderID) as? EKReminder else {
+            throw NSError(domain: "EventKitService", code: 3, userInfo: [NSLocalizedDescriptionKey: L.tr("Reminder could not be found.", language: .system)])
+        }
+
+        try eventStore.remove(reminder, commit: true)
+    }
+
     private static func sourceID(for calendar: EKCalendar, kind: CalendarSourceKind) -> String {
         "\(kind.rawValue):\(calendar.calendarIdentifier)"
     }

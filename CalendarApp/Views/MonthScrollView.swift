@@ -47,19 +47,29 @@ struct MonthScrollView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+
+                HeaderView(
+                    year: viewModel.visibleYear,
+                    monthTitle: viewModel.currentMonthTitle,
+                    contentScale: viewModel.settings.monthContentScale.factor,
+                    onShowYearOverview: { isYearOverviewPresented.toggle() },
+                    onSearch: { isSearchPresented = true },
+                    onMenu: { isDrawerPresented = true }
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .zIndex(1)
             }
 
-            HeaderView(
-                year: viewModel.visibleYear,
-                monthTitle: viewModel.currentMonthTitle,
-                contentScale: viewModel.settings.monthContentScale.factor,
-                onShowYearOverview: { isYearOverviewPresented.toggle() },
-                onSearch: { isSearchPresented = true },
-                onMenu: { isDrawerPresented = true }
-            )
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .zIndex(1)
+            if isYearOverviewPresented {
+                YearOverviewHeaderControls(
+                    onSearch: { isSearchPresented = true },
+                    onAdd: { onCreateEvent(Date()) }
+                )
+                .padding(.horizontal, 24)
+                .padding(.top, 44)
+                .zIndex(1)
+            }
         }
         .onChange(of: viewModel.scrollToTodayTrigger) { _, _ in
             withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
@@ -91,51 +101,87 @@ private struct HeaderView: View {
     @Environment(\.appLanguage) private var language
 
     var body: some View {
-        HStack(alignment: .center) {
-            Button(action: onShowYearOverview) {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .medium))
-                    Text(String(year))
-                        .font(.system(size: 17, weight: .medium))
-                }
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.primary)
-            .glassCapsule(horizontal: 12, vertical: 10)
-            .contentShape(Capsule())
-
-            Spacer()
-
+        ZStack {
             Text(monthTitle)
                 .font(.system(size: 17 * contentScale, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity, alignment: .center)
 
+            HStack(alignment: .center) {
+                Button(action: onShowYearOverview) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .medium))
+                        Text(String(year))
+                            .font(.system(size: 17, weight: .medium))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                .glassCapsule(horizontal: 12, vertical: 10)
+                .contentShape(Capsule())
+
+                Spacer()
+
+                HStack(spacing: 20) {
+                    Button(action: onSearch) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 17, weight: .regular))
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 36, height: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel(L.tr("Search", language: language))
+
+                    Button(action: onMenu) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 17, weight: .regular))
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 36, height: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel(L.tr("Calendars and settings", language: language))
+                }
+                .foregroundStyle(.primary)
+                .frame(height: 44)
+                .glassCapsule(horizontal: 8, vertical: 0)
+            }
+        }
+    }
+}
+
+private struct YearOverviewHeaderControls: View {
+    let onSearch: () -> Void
+    let onAdd: () -> Void
+    @Environment(\.appLanguage) private var language
+
+    var body: some View {
+        HStack {
             Spacer()
 
             HStack(spacing: 20) {
                 Button(action: onSearch) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 17, weight: .regular))
+                        .font(.system(size: 26, weight: .regular))
                 }
                 .buttonStyle(.plain)
-                .frame(width: 36, height: 44)
+                .frame(width: 44, height: 48)
                 .contentShape(Rectangle())
                 .accessibilityLabel(L.tr("Search", language: language))
 
-                Button(action: onMenu) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 17, weight: .regular))
+                Button(action: onAdd) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 28, weight: .regular))
                 }
                 .buttonStyle(.plain)
-                .frame(width: 36, height: 44)
+                .frame(width: 44, height: 48)
                 .contentShape(Rectangle())
-                .accessibilityLabel(L.tr("Calendars and settings", language: language))
+                .accessibilityLabel(L.tr("Add", language: language))
             }
             .foregroundStyle(.primary)
-            .frame(height: 44)
-            .glassCapsule(horizontal: 8, vertical: 0)
+            .frame(height: 56)
+            .glassCapsule(horizontal: 12, vertical: 0)
         }
     }
 }
@@ -173,7 +219,7 @@ private struct YearOverviewView: View {
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.top, 92)
+                .padding(.top, 118)
                 .padding(.bottom, 120)
             }
             .background(CalendarTheme.background.ignoresSafeArea())
@@ -205,14 +251,25 @@ private struct YearOverviewSection: View {
                 .fill(Color(.separator).opacity(0.35))
                 .frame(height: 1)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 24), count: 3), spacing: 34) {
-                ForEach(monthStarts, id: \.self) { month in
-                    MiniMonthView(
-                        month: month,
-                        calendar: calendar,
-                        isSelectedMonth: calendar.isDate(month, equalTo: selectedMonth, toGranularity: .month),
-                        onSelect: { onSelectMonth(month) }
-                    )
+            VStack(alignment: .leading, spacing: 34) {
+                ForEach(Array(monthRows.enumerated()), id: \.offset) { _, row in
+                    HStack(alignment: .top, spacing: 28) {
+                        ForEach(row, id: \.self) { month in
+                            MiniMonthView(
+                                month: month,
+                                calendar: calendar,
+                                isSelectedMonth: calendar.isDate(month, equalTo: Date(), toGranularity: .month),
+                                onSelect: { onSelectMonth(month) }
+                            )
+                            .frame(maxWidth: .infinity, minHeight: MiniMonthView.cardHeight, maxHeight: MiniMonthView.cardHeight, alignment: .topLeading)
+                        }
+
+                        if row.count < 3 {
+                            ForEach(0..<(3 - row.count), id: \.self) { _ in
+                                Color.clear.frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -222,7 +279,7 @@ private struct YearOverviewSection: View {
         HStack(alignment: .center) {
             Text(String(year))
                 .font(.system(size: 38, weight: .bold))
-                .foregroundStyle(Self.accent)
+                .foregroundStyle(year == calendar.component(.year, from: Date()) ? Self.accent : .primary)
 
             Spacer()
         }
@@ -231,6 +288,12 @@ private struct YearOverviewSection: View {
     private var monthStarts: [Date] {
         (1...12).compactMap { month in
             calendar.date(from: DateComponents(year: year, month: month, day: 1))
+        }
+    }
+
+    private var monthRows: [[Date]] {
+        stride(from: 0, to: monthStarts.count, by: 3).map {
+            Array(monthStarts[$0..<min($0 + 3, monthStarts.count)])
         }
     }
 
@@ -246,41 +309,57 @@ private struct MiniMonthView: View {
 
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text(monthTitle)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 23, weight: .bold))
                     .foregroundStyle(isSelectedMonth ? Self.accent : .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(height: 28, alignment: .topLeading)
 
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 0), count: 7), spacing: 5) {
-                    ForEach(days, id: \.self) { day in
-                        if let day {
-                            let isToday = calendar.isDateInToday(day)
-                            Text(String(calendar.component(.day, from: day)))
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(isToday ? .white : .primary)
-                                .minimumScaleFactor(0.8)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 15)
-                                .background {
-                                    if isToday {
-                                        Circle().fill(Self.accent)
-                                            .frame(width: 16, height: 16)
-                                    }
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(weekRows.enumerated()), id: \.offset) { _, week in
+                        HStack(spacing: 0) {
+                            ForEach(Array(week.enumerated()), id: \.offset) { _, day in
+                                if let day {
+                                    let isToday = calendar.isDateInToday(day)
+                                    Text(String(calendar.component(.day, from: day)))
+                                        .font(.system(size: 10.5, weight: .medium))
+                                        .monospacedDigit()
+                                        .foregroundStyle(isToday ? .white : .primary)
+                                        .frame(width: Self.dayCellSize, height: Self.dayCellSize)
+                                        .background {
+                                            if isToday {
+                                                Circle().fill(Self.accent)
+                                                    .frame(width: 17, height: 17)
+                                            }
+                                        }
+                                } else {
+                                    Color.clear
+                                        .frame(width: Self.dayCellSize, height: Self.dayCellSize)
                                 }
-                        } else {
-                            Color.clear.frame(height: 15)
+                            }
                         }
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: Self.cardHeight, maxHeight: Self.cardHeight, alignment: .topLeading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
+    static let cardHeight: CGFloat = 138
+
     private var monthTitle: String {
         month.formatted(.dateTime.month(.abbreviated).locale(language.locale))
+    }
+
+    private var weekRows: [[Date?]] {
+        let paddedDays = days + Array(repeating: nil, count: (7 - days.count % 7) % 7)
+        return stride(from: 0, to: paddedDays.count, by: 7).map {
+            Array(paddedDays[$0..<min($0 + 7, paddedDays.count)])
+        }
     }
 
     private var days: [Date?] {
@@ -295,6 +374,7 @@ private struct MiniMonthView: View {
         }
     }
 
+    private static let dayCellSize: CGFloat = 14
     private static let accent = Color(hex: "00C8B3") ?? .mint
 }
 
@@ -379,7 +459,7 @@ private struct MonthSectionView: View {
                     showsWeekNumbers: showsWeekNumbers,
                     contentScale: contentScale
                 )
-                .frame(height: 22 * contentScale)
+                .frame(height: 28 * contentScale)
 
                 VStack(spacing: 0) {
                     ForEach(Array(month.weeks.enumerated()), id: \.offset) { index, week in
@@ -432,18 +512,19 @@ private struct WeekdayHeaderView: View {
         HStack(spacing: 0) {
             if showsWeekNumbers {
                 Text(L.tr("W", language: language))
-                    .font(.system(size: 11 * contentScale, weight: .medium))
+                    .font(.system(size: 13 * contentScale, weight: .medium))
                     .foregroundStyle(.primary)
                     .frame(width: 28)
             }
 
             ForEach(reorderedSymbols, id: \.self) { symbol in
                 Text(String(symbol.prefix(1)))
-                    .font(.system(size: 11 * contentScale, weight: .medium))
+                    .font(.system(size: 13 * contentScale, weight: .medium))
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
             }
         }
+        .padding(.vertical, 2 * contentScale)
     }
 
     private var reorderedSymbols: [String] {

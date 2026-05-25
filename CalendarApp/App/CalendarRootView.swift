@@ -6,6 +6,7 @@ struct CalendarRootView: View {
     @State private var selectedDay: CalendarDay?
     @State private var isDrawerPresented = false
     @State private var eventEditorContext: EventEditView.EventContext?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -54,6 +55,12 @@ struct CalendarRootView: View {
             .toolbar(.hidden, for: .navigationBar)
             .task {
                 await viewModel.loadInitialData()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task {
+                    await viewModel.refreshAfterReturningToForeground()
+                }
             }
             .sheet(item: $selectedDay) { day in
                 DayScheduleView(
@@ -214,7 +221,7 @@ struct CalendarRootView: View {
                         )
                     }
                 },
-                onDelete: event.kind == .event && viewModel.isCalendarWritable(event.calendarID) ? { deleteScope in
+                onDelete: viewModel.isCalendarWritable(event.calendarID) ? { deleteScope in
                     await viewModel.deleteEvent(
                         eventID: event.id,
                         calendarID: event.calendarID,

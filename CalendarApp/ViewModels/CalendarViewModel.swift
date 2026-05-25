@@ -56,7 +56,10 @@ final class CalendarViewModel {
         if storedSettings.isICloudSyncEnabled && storedSettings.lastICloudSyncAt == nil {
             storedSettings.isICloudSyncEnabled = false
         }
-        let configuredCalendar = Self.makeConfiguredCalendar(base: calendar, startOfWeek: storedSettings.startOfWeek)
+        let configuredCalendar = CalendarMonthBuilder.configuredCalendar(
+            base: calendar,
+            startOfWeek: storedSettings.startOfWeek
+        )
         let todayMonth = configuredCalendar.dateInterval(of: .month, for: Date())?.start ?? Date()
         self.settings = storedSettings
         self.baseCalendar = calendar
@@ -68,7 +71,11 @@ final class CalendarViewModel {
         visibleYear = configuredCalendar.component(.year, from: todayMonth)
         selectedMonthID = todayMonth
         currentMonthAnchor = todayMonth
-        months = Self.makeMonths(around: todayMonth, radius: monthPageRadius, calendar: configuredCalendar)
+        months = CalendarMonthBuilder.makeMonths(
+            around: todayMonth,
+            radius: monthPageRadius,
+            calendar: configuredCalendar
+        )
         calendarSources = mergeLocalCalendarState(into: storedState.cachedCalendarSources)
         events = storedState.cachedEvents
         accessState = eventKitService.currentAccessState()
@@ -136,11 +143,11 @@ final class CalendarViewModel {
     }
 
     var lastICloudSyncDescription: String {
-        Self.syncDescription(for: settings.lastICloudSyncAt, language: settings.language)
+        CalendarSyncDescriptionFormatter.string(for: settings.lastICloudSyncAt, language: settings.language)
     }
 
     var lastGoogleSyncDescription: String {
-        Self.syncDescription(for: settings.lastGoogleSyncAt, language: settings.language)
+        CalendarSyncDescriptionFormatter.string(for: settings.lastGoogleSyncAt, language: settings.language)
     }
 
     var canRefreshICloud: Bool {
@@ -329,6 +336,22 @@ final class CalendarViewModel {
 
         selectedProvider = .google
         await reloadGoogleCalendarsAndEvents()
+    }
+
+    func refreshAfterReturningToForeground() async {
+        guard isInitialLoadComplete else { return }
+
+        switch selectedProvider {
+        case .google where googleAuthState.isSignedIn:
+            await refreshGoogleNow()
+        case .iCloud where settings.isICloudSyncEnabled:
+            refreshCalendarAccessState()
+            guard accessState == .granted else { return }
+            await reloadCalendarsAndEvents()
+            startObservingStoreChangesIfNeeded()
+        default:
+            break
+        }
     }
 
     func createEvent(
@@ -556,7 +579,16 @@ final class CalendarViewModel {
         deleteScope: RecurringEventDeleteScope = .thisEvent
     ) async -> Bool {
         do {
-            if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
+            let source = calendarSources.first(where: { $0.id == calendarID })
+            if source?.kind == .reminder {
+                if source?.provider == .google {
+                    try await googleCalendarService.deleteTask(eventID: eventID)
+                    await reloadGoogleCalendarsAndEvents()
+                } else {
+                    try eventKitService.deleteReminder(reminderID: eventID)
+                    await reloadCalendarsAndEvents()
+                }
+            } else if source?.provider == .google {
                 try await googleCalendarService.deleteEvent(
                     eventID: eventID,
                     calendarID: calendarID,
@@ -689,9 +721,13 @@ final class CalendarViewModel {
     func setStartOfWeek(_ option: StartOfWeekOption) {
         guard settings.startOfWeek != option else { return }
         settings.startOfWeek = option
-        calendar = Self.makeConfiguredCalendar(base: baseCalendar, startOfWeek: option)
+        calendar = CalendarMonthBuilder.configuredCalendar(base: baseCalendar, startOfWeek: option)
         currentMonthAnchor = calendar.dateInterval(of: .month, for: selectedMonthID)?.start ?? selectedMonthID
-        months = Self.makeMonths(around: currentMonthAnchor, radius: monthPageRadius, calendar: calendar)
+        months = CalendarMonthBuilder.makeMonths(
+            around: currentMonthAnchor,
+            radius: monthPageRadius,
+            calendar: calendar
+        )
         selectedMonthID = currentMonthAnchor
         visibleYear = calendar.component(.year, from: selectedMonthID)
         persistStoredState()
@@ -898,26 +934,9 @@ final class CalendarViewModel {
         )
     }
 
-    private static func makeConfiguredCalendar(base: Calendar, startOfWeek: StartOfWeekOption) -> Calendar {
-        var configured = base
-        if let firstWeekday = startOfWeek.firstWeekdayOverride {
-            configured.firstWeekday = firstWeekday
-        }
-        return configured
-    }
-
-    private static func syncDescription(for date: Date?, language: AppLanguage) -> String {
-        guard let date else { return L.tr("Never", language: language) }
-        let formatter = DateFormatter()
-        formatter.locale = language.locale
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
-
     private func shiftMonthWindow(to monthID: Date) {
         currentMonthAnchor = monthID
-        months = Self.makeMonths(around: monthID, radius: monthPageRadius, calendar: calendar)
+        months = CalendarMonthBuilder.makeMonths(around: monthID, radius: monthPageRadius, calendar: calendar)
         selectedMonthID = monthID
         visibleYear = calendar.component(.year, from: monthID)
         Task {
@@ -986,61 +1005,4 @@ final class CalendarViewModel {
         return DateInterval(start: intervalStart, end: intervalEnd)
     }
 
-    private static func makeMonths(around date: Date, radius: Int, calendar: Calendar) -> [CalendarMonth] {
-        (-radius...radius).compactMap { offset in
-            guard let month = calendar.date(byAdding: .month, value: offset, to: date) else {
-                return nil
-            }
-
-            return makeMonth(containing: month, calendar: calendar)
-        }
-    }
-
-    private static func makeMonth(containing date: Date, calendar: Calendar) -> CalendarMonth? {
-        guard let monthInterval = calendar.dateInterval(of: .month, for: date),
-              let firstGridDate = gridStart(for: monthInterval.start, calendar: calendar),
-              let lastDayOfMonth = calendar.date(byAdding: .day, value: -1, to: monthInterval.end),
-              let lastGridDate = gridEnd(for: lastDayOfMonth, calendar: calendar) else {
-            return nil
-        }
-
-        let gridDayCount = (calendar.dateComponents([.day], from: firstGridDate, to: lastGridDate).day ?? 0) + 1
-        let visibleDayCount = max(gridDayCount, 42)
-        let days = (0..<visibleDayCount).compactMap { offset -> CalendarDay? in
-            guard let dayDate = calendar.date(byAdding: .day, value: offset, to: firstGridDate) else {
-                return nil
-            }
-
-            return CalendarDay(
-                date: dayDate,
-                monthDate: monthInterval.start,
-                isInDisplayedMonth: calendar.isDate(dayDate, equalTo: monthInterval.start, toGranularity: .month)
-            )
-        }
-
-        let weeks = stride(from: 0, to: days.count, by: 7).map {
-            Array(days[$0..<min($0 + 7, days.count)])
-        }
-
-        let weekNumbers = weeks.compactMap { week in
-            week.first.map { calendar.component(.weekOfYear, from: $0.date) }
-        }
-
-        return CalendarMonth(date: monthInterval.start, weeks: weeks, weekNumbers: weekNumbers)
-    }
-
-    private static func gridStart(for monthStart: Date, calendar: Calendar) -> Date? {
-        let weekday = calendar.component(.weekday, from: monthStart)
-        let firstWeekday = calendar.firstWeekday
-        let daysBack = (weekday - firstWeekday + 7) % 7
-        return calendar.date(byAdding: .day, value: -daysBack, to: monthStart)
-    }
-
-    private static func gridEnd(for monthEnd: Date, calendar: Calendar) -> Date? {
-        let weekday = calendar.component(.weekday, from: monthEnd)
-        let firstWeekday = calendar.firstWeekday
-        let lastWeekday = ((firstWeekday + 5) % 7) + 1
-        let daysForward = (lastWeekday - weekday + 7) % 7
-        return calendar.date(byAdding: .day, value: daysForward, to: monthEnd)
-    }
 }
