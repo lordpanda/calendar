@@ -32,6 +32,7 @@ struct MonthScrollView: View {
                             calendar: viewModel.displayCalendar,
                             showsWeekNumbers: viewModel.settings.showsWeekNumbers,
                             contentScale: viewModel.settings.monthContentScale.factor,
+                            isMosaicModeEnabled: viewModel.settings.isMosaicModeEnabled,
                             eventsForDay: { viewModel.events(on: $0) },
                             colorForEvent: { viewModel.color(for: $0) },
                             onSelectDay: { day in
@@ -224,10 +225,10 @@ private struct YearOverviewView: View {
             }
             .background(CalendarTheme.background.ignoresSafeArea())
             .onAppear {
-                proxy.scrollTo(year, anchor: .top)
+                proxy.scrollTo(year, anchor: UnitPoint(x: 0.5, y: 0.18))
             }
             .onChange(of: year) { _, newYear in
-                proxy.scrollTo(newYear, anchor: .top)
+                proxy.scrollTo(newYear, anchor: UnitPoint(x: 0.5, y: 0.18))
             }
         }
     }
@@ -251,7 +252,7 @@ private struct YearOverviewSection: View {
                 .fill(Color(.separator).opacity(0.35))
                 .frame(height: 1)
 
-            VStack(alignment: .leading, spacing: 34) {
+            VStack(alignment: .leading, spacing: 27) {
                 ForEach(Array(monthRows.enumerated()), id: \.offset) { _, row in
                     HStack(alignment: .top, spacing: 28) {
                         ForEach(row, id: \.self) { month in
@@ -421,9 +422,10 @@ private struct EventSearchView: View {
                                 .lineLimit(nil)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
             .navigationTitle(L.tr("Search", language: language))
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))
@@ -431,8 +433,18 @@ private struct EventSearchView: View {
     }
 
     private func subtitle(for event: CalendarEvent) -> String {
+        let includesYear = !Calendar.current.isDate(event.startDate, equalTo: Date(), toGranularity: .year)
+
         if event.isAllDay {
+            if includesYear {
+                return event.startDate.formatted(.dateTime.year().month(.abbreviated).day().locale(language.locale))
+            }
+
             return event.startDate.formatted(.dateTime.month(.abbreviated).day().locale(language.locale))
+        }
+
+        if includesYear {
+            return event.startDate.formatted(.dateTime.year().month(.abbreviated).day().hour().minute().locale(language.locale))
         }
 
         return event.startDate.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(language.locale))
@@ -444,6 +456,7 @@ private struct MonthSectionView: View {
     let calendar: Calendar
     let showsWeekNumbers: Bool
     let contentScale: CGFloat
+    let isMosaicModeEnabled: Bool
     let eventsForDay: (Date) -> [CalendarEvent]
     let colorForEvent: (CalendarEvent) -> String
     let onSelectDay: (CalendarDay) -> Void
@@ -452,6 +465,17 @@ private struct MonthSectionView: View {
     var body: some View {
         GeometryReader { proxy in
             let headerTop = proxy.safeAreaInsets.top + 57
+            let weekdayHeaderHeight = 28 * contentScale
+            let targetWeekHeight: CGFloat = 110
+            let availableWeekHeight = max(proxy.size.height - headerTop - weekdayHeaderHeight, 0)
+            let fixedWeekHeight = min(
+                targetWeekHeight,
+                availableWeekHeight / CGFloat(max(month.weeks.count, 1))
+            )
+            let lastWeekHeight = max(
+                0,
+                availableWeekHeight - fixedWeekHeight * CGFloat(max(month.weeks.count - 1, 0))
+            )
 
             VStack(alignment: .leading, spacing: 0) {
                 WeekdayHeaderView(
@@ -459,7 +483,7 @@ private struct MonthSectionView: View {
                     showsWeekNumbers: showsWeekNumbers,
                     contentScale: contentScale
                 )
-                .frame(height: 28 * contentScale)
+                .frame(height: weekdayHeaderHeight)
 
                 VStack(spacing: 0) {
                     ForEach(Array(month.weeks.enumerated()), id: \.offset) { index, week in
@@ -471,12 +495,13 @@ private struct MonthSectionView: View {
                             showsWeekNumbers: showsWeekNumbers,
                             calendar: calendar,
                             contentScale: contentScale,
+                            isMosaicModeEnabled: isMosaicModeEnabled,
                             eventsForDay: eventsForDay,
                             colorForEvent: colorForEvent,
                             onSelectDay: onSelectDay,
                             onSelectEvent: onSelectEvent
                         )
-                        .frame(minHeight: 110, maxHeight: isLast ? .infinity : 110)
+                        .frame(height: isLast ? lastWeekHeight : fixedWeekHeight)
                         .overlay(alignment: .top) {
                             if index == 0 {
                                 Rectangle()
@@ -544,6 +569,7 @@ private struct WeekRowView: View {
     let showsWeekNumbers: Bool
     let calendar: Calendar
     let contentScale: CGFloat
+    let isMosaicModeEnabled: Bool
     let eventsForDay: (Date) -> [CalendarEvent]
     let colorForEvent: (CalendarEvent) -> String
     let onSelectDay: (CalendarDay) -> Void
@@ -579,7 +605,8 @@ private struct WeekRowView: View {
                             colorHex: colorForEvent(segment.event),
                             leadingStyle: segment.startsInWeek ? .rounded : .square,
                             trailingStyle: segment.endsInWeek ? .rounded : .square,
-                            contentScale: contentScale
+                            contentScale: contentScale,
+                            isMosaicModeEnabled: isMosaicModeEnabled
                         )
                         .frame(width: width, height: eventHeight, alignment: .leading)
                     }
@@ -790,12 +817,18 @@ private struct EventBarView: View {
     let leadingStyle: EventBarEdgeStyle
     let trailingStyle: EventBarEdgeStyle
     let contentScale: CGFloat
+    let isMosaicModeEnabled: Bool
+    @Environment(\.appLanguage) private var language
 
     private var color: Color {
         if event.kind == .reminder {
             return .orange
         }
         return Color(hex: colorHex) ?? .accentColor
+    }
+
+    private var displayTitle: String {
+        isMosaicModeEnabled ? EventTitleMosaic.title(for: event, language: language) : event.title
     }
 
     var body: some View {
@@ -818,7 +851,7 @@ private struct EventBarView: View {
                             .frame(width: 11 * contentScale, height: eventHeight)
                     }
 
-                    Text(event.title)
+                    Text(displayTitle)
                         .font(.system(size: 11 * contentScale, weight: .medium))
                         .lineLimit(1)
                         .strikethrough(event.isCompleted, color: .white)
@@ -833,7 +866,7 @@ private struct EventBarView: View {
         }
         .frame(height: eventHeight, alignment: .leading)
         .opacity(event.isCompleted ? 0.55 : 1)
-        .accessibilityLabel(event.title)
+        .accessibilityLabel(displayTitle)
     }
 
     private var eventHeight: CGFloat {

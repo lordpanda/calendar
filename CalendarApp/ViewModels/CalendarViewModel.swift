@@ -751,6 +751,12 @@ final class CalendarViewModel {
         }
     }
 
+    func setMosaicModeEnabled(_ isEnabled: Bool) {
+        guard settings.isMosaicModeEnabled != isEnabled else { return }
+        settings.isMosaicModeEnabled = isEnabled
+        persistStoredState()
+    }
+
     func setMonthContentScale(_ scale: MonthContentScale) {
         guard settings.monthContentScale != scale else { return }
         settings.monthContentScale = scale

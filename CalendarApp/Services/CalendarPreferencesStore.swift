@@ -11,6 +11,7 @@ struct CalendarAppSettings: Codable, Equatable {
     var startOfWeek: StartOfWeekOption
     var showsWeekNumbers: Bool
     var showsCompletedTasks: Bool
+    var isMosaicModeEnabled: Bool
     var monthContentScale: MonthContentScale
     var language: AppLanguage
     var usesDeviceTimeZone: Bool
@@ -24,6 +25,7 @@ struct CalendarAppSettings: Codable, Equatable {
         startOfWeek: .system,
         showsWeekNumbers: false,
         showsCompletedTasks: true,
+        isMosaicModeEnabled: false,
         monthContentScale: .normal,
         language: .system,
         usesDeviceTimeZone: true,
@@ -38,6 +40,7 @@ struct CalendarAppSettings: Codable, Equatable {
         case startOfWeek
         case showsWeekNumbers
         case showsCompletedTasks
+        case isMosaicModeEnabled
         case monthContentScale
         case language
         case usesDeviceTimeZone
@@ -52,6 +55,7 @@ struct CalendarAppSettings: Codable, Equatable {
         startOfWeek: StartOfWeekOption,
         showsWeekNumbers: Bool,
         showsCompletedTasks: Bool,
+        isMosaicModeEnabled: Bool,
         monthContentScale: MonthContentScale,
         language: AppLanguage,
         usesDeviceTimeZone: Bool,
@@ -64,6 +68,7 @@ struct CalendarAppSettings: Codable, Equatable {
         self.startOfWeek = startOfWeek
         self.showsWeekNumbers = showsWeekNumbers
         self.showsCompletedTasks = showsCompletedTasks
+        self.isMosaicModeEnabled = isMosaicModeEnabled
         self.monthContentScale = monthContentScale
         self.language = language
         self.usesDeviceTimeZone = usesDeviceTimeZone
@@ -79,6 +84,7 @@ struct CalendarAppSettings: Codable, Equatable {
         startOfWeek = try container.decodeIfPresent(StartOfWeekOption.self, forKey: .startOfWeek) ?? .system
         showsWeekNumbers = try container.decodeIfPresent(Bool.self, forKey: .showsWeekNumbers) ?? false
         showsCompletedTasks = try container.decodeIfPresent(Bool.self, forKey: .showsCompletedTasks) ?? true
+        isMosaicModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .isMosaicModeEnabled) ?? false
         monthContentScale = try container.decodeIfPresent(MonthContentScale.self, forKey: .monthContentScale) ?? .normal
         language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
         usesDeviceTimeZone = try container.decodeIfPresent(Bool.self, forKey: .usesDeviceTimeZone) ?? true

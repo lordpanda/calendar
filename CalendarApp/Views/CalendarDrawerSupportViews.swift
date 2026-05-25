@@ -111,6 +111,16 @@ struct CalendarSettingsView: View {
 
                     settingsDivider
 
+                    settingsToggleRow(
+                        title: L.tr("Mosaic Mode", language: language),
+                        isOn: Binding(
+                            get: { viewModel.settings.isMosaicModeEnabled },
+                            set: { viewModel.setMosaicModeEnabled($0) }
+                        )
+                    )
+
+                    settingsDivider
+
                     menuRow(
                         title: L.tr("Main View Font Size", language: language),
                         value: viewModel.settings.monthContentScale.title

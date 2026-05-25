@@ -23,6 +23,7 @@
 "Calendar access state is unknown." = "Calendar access state is unknown.";
 "Calendar access was denied. Enable access in Settings to load local calendars." = "Calendar access was denied. Enable access in Settings to load local calendars.";
 "Calendar Appearance" = "Calendar Appearance";
+"Mosaic Mode" = "Mosaic Mode";
 "Calendar authorization state is unknown." = "Calendar authorization state is unknown.";
 "Calendar callback URL scheme is not configured." = "Calendar callback URL scheme is not configured.";
 "Calendars" = "Calendars";
@@ -118,6 +119,7 @@
 "Save" = "Save";
 "Search" = "Search";
 "Search maps" = "Search maps";
+"No information" = "No information";
 "Select %@" = "Select %@";
 "Selected calendar could not be found." = "Selected calendar could not be found.";
 "Settings" = "Settings";

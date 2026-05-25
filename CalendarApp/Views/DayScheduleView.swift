@@ -3,6 +3,7 @@ import SwiftUI
 struct DayScheduleView: View {
     let date: Date
     let events: [CalendarEvent]
+    let isMosaicModeEnabled: Bool
     let colorForEvent: (CalendarEvent) -> String
     let onPreviousDay: () -> Void
     let onNextDay: () -> Void
@@ -86,7 +87,7 @@ struct DayScheduleView: View {
                                 Image(systemName: "checkmark.circle")
                             }
 
-                            Text(event.title)
+                            Text(displayTitle(for: event))
                                 .font(.caption.weight(.semibold))
                                 .strikethrough(event.isCompleted, color: backgroundColor(for: event))
                         }
@@ -157,6 +158,7 @@ struct DayScheduleView: View {
             DayEventBlock(
                 event: item.event,
                 color: backgroundColor(for: item.event),
+                displayTitle: displayTitle(for: item.event),
                 onTap: { onSelectEvent(item.event) }
             )
                 .frame(width: item.width, height: item.height)
@@ -272,6 +274,10 @@ struct DayScheduleView: View {
             startDate.formatted(.dateTime.hour().locale(language.locale))
         )
     }
+
+    private func displayTitle(for event: CalendarEvent) -> String {
+        isMosaicModeEnabled ? EventTitleMosaic.title(for: event, language: language) : event.title
+    }
 }
 
 private struct PositionedEvent: Identifiable {
@@ -287,6 +293,7 @@ private struct PositionedEvent: Identifiable {
 private struct DayEventBlock: View {
     let event: CalendarEvent
     let color: Color
+    let displayTitle: String
     let onTap: () -> Void
 
     var body: some View {
@@ -298,7 +305,7 @@ private struct DayEventBlock: View {
                             .font(.caption)
                     }
 
-                    Text(event.title)
+                    Text(displayTitle)
                         .font(.caption.weight(.bold))
                         .lineLimit(nil)
                         .strikethrough(event.isCompleted, color: .primary)

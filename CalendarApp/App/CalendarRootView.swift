@@ -66,6 +66,7 @@ struct CalendarRootView: View {
                 DayScheduleView(
                     date: day.date,
                     events: viewModel.events(on: day.date),
+                    isMosaicModeEnabled: viewModel.settings.isMosaicModeEnabled,
                     colorForEvent: { viewModel.color(for: $0) },
                     onPreviousDay: { selectedDay = viewModel.day(for: Calendar.current.date(byAdding: .day, value: -1, to: day.date) ?? day.date) },
                     onNextDay: { selectedDay = viewModel.day(for: Calendar.current.date(byAdding: .day, value: 1, to: day.date) ?? day.date) },

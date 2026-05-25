@@ -65,3 +65,39 @@ enum MonthContentScale: String, CaseIterable, Codable, Identifiable {
         }
     }
 }
+
+enum EventTitleMosaic {
+    static func title(for event: CalendarEvent, language: AppLanguage) -> String {
+        let names = dessertNames(for: language)
+        guard !names.isEmpty else { return event.title }
+
+        let key = "\(event.calendarID)|\(event.id)"
+        return names[Int(stableHash(for: key) % UInt64(names.count))]
+    }
+
+    private static func dessertNames(for language: AppLanguage) -> [String] {
+        let languageCode = language.locale.language.languageCode?.identifier
+        if language == .korean || (language == .system && languageCode == "ko") {
+            return [
+                "마카롱", "티라미수", "푸딩", "브라우니", "치즈케이크", "몽블랑",
+                "에클레어", "타르트", "파르페", "스콘", "젤라토", "카눌레",
+                "와플", "크루아상", "롤케이크", "도넛", "마들렌", "바스크케이크"
+            ]
+        }
+
+        return [
+            "Macaron", "Tiramisu", "Pudding", "Brownie", "Cheesecake", "Mont Blanc",
+            "Eclair", "Tart", "Parfait", "Scone", "Gelato", "Cannele",
+            "Waffle", "Croissant", "Roll Cake", "Donut", "Madeleine", "Basque Cake"
+        ]
+    }
+
+    private static func stableHash(for string: String) -> UInt64 {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in string.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return hash
+    }
+}
