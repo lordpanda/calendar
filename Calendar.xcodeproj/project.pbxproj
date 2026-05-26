@@ -28,6 +28,7 @@
 		A4CB4349571DDD0CAD3FA171 /* GoogleOAuthClient.plist in Resources */ = {isa = PBXBuildFile; fileRef = E999C2F34594797A09FD0A04 /* GoogleOAuthClient.plist */; };
 		A5FE55D83F4D91C43E7748FC /* MonthScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9060AF03A41B227E81C10601 /* MonthScrollView.swift */; };
 		B58EE7CD4D9C96E794C98BCB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4567A84538C180727EC7247 /* Assets.xcassets */; };
+		BA6476B22FC500B80027BB01 /* calendar.icon in Resources */ = {isa = PBXBuildFile; fileRef = BA6476B12FC500B80027BB01 /* calendar.icon */; };
 		C8F607D49A22213AB595267A /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = AB47728FA9B0BD8B03B22B98 /* GoogleSignIn */; };
 		CBD3535A82F3864CA8C13A67 /* CalendarPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C3635B57351B4CFDF476C7 /* CalendarPreferencesStore.swift */; };
 		CE651F05452259009C49886D /* CalendarDrawerSupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E6BF2C78D57DB47775B71A8 /* CalendarDrawerSupportViews.swift */; };
@@ -66,6 +67,7 @@
 		B13E1308CD1C36EC67725DE6 /* EventRepeatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventRepeatModels.swift; sourceTree = "<group>"; };
 		B1C3635B57351B4CFDF476C7 /* CalendarPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPreferencesStore.swift; sourceTree = "<group>"; };
 		B954FF6ECAE840EEEA12887B /* CalendarDrawerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDrawerView.swift; sourceTree = "<group>"; };
+		BA6476B12FC500B80027BB01 /* calendar.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = calendar.icon; sourceTree = "<group>"; };
 		BD6E7B55F1D4CC9BA65F9FF9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CA7A208938315C0A113CEBC6 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/Localizable.strings; sourceTree = "<group>"; };
 		CF5600E86194CED4B293B7F4 /* CalendarSettingsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarSettingsModels.swift; sourceTree = "<group>"; };
@@ -200,6 +202,7 @@
 		DD872B5EC8746D36CA8454EB /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				BA6476B12FC500B80027BB01 /* calendar.icon */,
 				D4567A84538C180727EC7247 /* Assets.xcassets */,
 				E999C2F34594797A09FD0A04 /* GoogleOAuthClient.plist */,
 				BD6E7B55F1D4CC9BA65F9FF9 /* Info.plist */,
@@ -271,6 +274,7 @@
 				B58EE7CD4D9C96E794C98BCB /* Assets.xcassets in Resources */,
 				A4CB4349571DDD0CAD3FA171 /* GoogleOAuthClient.plist in Resources */,
 				646D6F727E40BE1CBCBE25E1 /* InfoPlist.strings in Resources */,
+				BA6476B22FC500B80027BB01 /* calendar.icon in Resources */,
 				51988ADDCC0675EB246F9642 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -339,7 +343,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 479B22C40E6B32F3C18A6826 /* Base.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = calendar;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 2CFSFK9M49;
@@ -496,7 +500,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 479B22C40E6B32F3C18A6826 /* Base.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = calendar;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 2CFSFK9M49;
