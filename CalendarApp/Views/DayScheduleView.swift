@@ -13,6 +13,8 @@ struct DayScheduleView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var language
     private let hourHeight: CGFloat = 60
+    private let timelineLeadingOffset: CGFloat = 58
+    private let hourLineTopOffset: CGFloat = 7
 
     var body: some View {
         NavigationStack {
@@ -30,7 +32,7 @@ struct DayScheduleView: View {
                                 initialScrollAnchor
                             }
                         }
-                        .frame(height: hourHeight * 24)
+                        .frame(height: timelineHeight)
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .id("timeline")
@@ -118,16 +120,18 @@ struct DayScheduleView: View {
     private var hourGrid: some View {
         VStack(spacing: 0) {
             ForEach(0..<24, id: \.self) { hour in
+                let isNoon = hour == 12
+
                 HStack(alignment: .top, spacing: 10) {
                     Text(hour.formatted(.number.precision(.integerLength(2))) + ":00")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .font(.caption2.monospacedDigit().weight(isNoon ? .semibold : .regular))
+                        .foregroundStyle(isNoon ? .primary : .secondary)
                         .frame(width: 44, alignment: .trailing)
 
                     Rectangle()
-                        .fill(Color.secondary.opacity(0.18))
-                        .frame(height: 0.6)
-                        .padding(.top, 7)
+                        .fill(Color.secondary.opacity(isNoon ? 0.42 : 0.18))
+                        .frame(height: isNoon ? 0.9 : 0.6)
+                        .padding(.top, hourLineTopOffset)
                 }
                 .frame(height: hourHeight, alignment: .top)
             }
@@ -148,7 +152,7 @@ struct DayScheduleView: View {
                 .accessibilityLabel(newEventAccessibilityLabel(for: hour))
             }
         }
-        .offset(x: 58)
+        .offset(x: timelineLeadingOffset)
     }
 
     private func eventBlocks(availableWidth: CGFloat) -> some View {
@@ -162,7 +166,7 @@ struct DayScheduleView: View {
                 onTap: { onSelectEvent(item.event) }
             )
                 .frame(width: item.width, height: item.height)
-                .offset(x: 58 + item.x, y: item.y)
+                .offset(x: timelineLeadingOffset + item.x, y: item.y)
         }
     }
 
@@ -171,7 +175,7 @@ struct DayScheduleView: View {
         if Calendar.current.isDateInToday(date) {
             let components = Calendar.current.dateComponents([.hour, .minute], from: Date())
             let minutes = CGFloat((components.hour ?? 0) * 60 + (components.minute ?? 0))
-            let y = minutes / 60 * hourHeight
+            let y = yOffset(forMinutes: minutes)
 
             HStack(spacing: 6) {
                 Text(Date().formatted(.dateTime.hour().minute()))
@@ -201,7 +205,7 @@ struct DayScheduleView: View {
             return PositionedEvent(
                 event: event,
                 x: x,
-                y: startMinutes / 60 * hourHeight,
+                y: yOffset(forMinutes: startMinutes),
                 width: width,
                 height: max(32, (endMinutes - startMinutes) / 60 * hourHeight)
             )
@@ -240,7 +244,7 @@ struct DayScheduleView: View {
             return yOffset(for: Date())
         }
 
-        return hourHeight * 8
+        return yOffset(forMinutes: 8 * 60)
     }
 
     private var firstTimedEvent: CalendarEvent? {
@@ -257,7 +261,15 @@ struct DayScheduleView: View {
     private func yOffset(for date: Date) -> CGFloat {
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)
         let minutes = CGFloat((components.hour ?? 0) * 60 + (components.minute ?? 0))
-        return max(0, min(minutes / 60 * hourHeight, hourHeight * 24))
+        return yOffset(forMinutes: minutes)
+    }
+
+    private func yOffset(forMinutes minutes: CGFloat) -> CGFloat {
+        max(0, min(hourLineTopOffset + minutes / 60 * hourHeight, timelineHeight))
+    }
+
+    private var timelineHeight: CGFloat {
+        hourLineTopOffset + hourHeight * 24
     }
 
     private func date(atHour hour: Int) -> Date {
