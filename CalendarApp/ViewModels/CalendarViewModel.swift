@@ -39,6 +39,7 @@ final class CalendarViewModel {
     private let googleCalendarService: GoogleCalendarService
     private let preferencesStore: CalendarPreferencesStore
     private var observationTask: Task<Void, Never>?
+    private var visibleIntervalReloadTask: Task<Void, Never>?
     private let monthPageRadius = 12
     private let eventFetchRadius = 2
     private var calendarPreferences: [String: CalendarPreferences]
@@ -962,7 +963,8 @@ final class CalendarViewModel {
     }
 
     private func scheduleVisibleIntervalReload() {
-        Task {
+        visibleIntervalReloadTask?.cancel()
+        visibleIntervalReloadTask = Task {
             await reloadEventsForVisibleInterval()
         }
     }
