@@ -1,0 +1,256 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "display-p3:0.34908,0.80188,0.72395,1.00000",
+      "display-p3:0.17129,0.44424,0.41949,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "Rectangle 96.svg",
+          "name" : "Rectangle 96",
+          "position" : {
+            "scale" : 4.5,
+            "translation-in-points" : [
+              203,
+              -271
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 96.svg",
+          "name" : "Rectangle 96",
+          "position" : {
+            "scale" : 4.5,
+            "translation-in-points" : [
+              -219.4204682696518,
+              -271
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 110 2.svg",
+          "name" : "Rectangle 110 2",
+          "position" : {
+            "scale" : 4.5,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 109.svg",
+          "name" : "Rectangle 109",
+          "position" : {
+            "scale" : 4.5,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "hidden" : true,
+      "layers" : [
+        {
+          "image-name" : "Rectangle 92.svg",
+          "name" : "Rectangle 92",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              -140.671875,
+              -219.5390625
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 92.svg",
+          "name" : "Rectangle 92",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              129.5859375,
+              -219.5390625
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 80.svg",
+          "name" : "Rectangle 80",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              0,
+              26.4609375
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "hidden" : true,
+      "layers" : [
+        {
+          "image-name" : "Rectangle 92.svg",
+          "name" : "Rectangle 92",
+          "opacity" : 0.8,
+          "position" : {
+            "scale" : 3.5,
+            "translation-in-points" : [
+              138.4154692303482,
+              -291.41041704480676
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 92.svg",
+          "name" : "Rectangle 92",
+          "opacity" : 0.8,
+          "position" : {
+            "scale" : 3.5,
+            "translation-in-points" : [
+              -165.1704682696518,
+              -291.41041704480676
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 97.svg",
+          "name" : "Rectangle 97",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              -13.170468269651792,
+              -31.410417044806763
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 97.svg",
+          "name" : "Rectangle 97",
+          "opacity" : 0.4,
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              61.17046826965179,
+              49.66131037195669
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "hidden" : true,
+      "layers" : [
+        {
+          "image-name" : "Rectangle 95.svg",
+          "name" : "Rectangle 95",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              151.5859375,
+              -260
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 95.svg",
+          "name" : "Rectangle 95",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              -152,
+              -260
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 93.svg",
+          "name" : "Rectangle 93",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              0,
+              -50.4296875
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 98.svg",
+          "name" : "Rectangle 98",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              -112,
+              75.875
+            ]
+          }
+        },
+        {
+          "image-name" : "Rectangle 97.svg",
+          "name" : "Rectangle 97",
+          "position" : {
+            "scale" : 4,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

@@ -394,14 +394,16 @@ struct CalendarEditView: View {
                     }
 
                     Section {
-                        TextField(L.tr("Display Name", language: language), text: $draftName)
-                            .textInputAutocapitalization(.never)
+                        HStack(spacing: 12) {
+                            TextField(L.tr("Display Name", language: language), text: $draftName)
+                                .textInputAutocapitalization(.never)
 
-                        Button(L.tr("Reset to Original Name", language: language)) {
-                            draftName = calendar.title
-                            viewModel.setCalendarTitleOverride(calendarID: calendarID, title: nil)
+                            Button(L.tr("Reset", language: language)) {
+                                draftName = calendar.title
+                                viewModel.setCalendarTitleOverride(calendarID: calendarID, title: nil)
+                            }
+                            .disabled(calendar.titleOverride == nil)
                         }
-                        .disabled(calendar.titleOverride == nil)
                     } header: {
                         Text(L.tr("Name", language: language))
                     } footer: {
@@ -457,6 +459,7 @@ struct CalendarEditView: View {
             }
             .navigationTitle(L.tr("Edit Calendar", language: language))
             .navigationBarTitleDisplayMode(.inline)
+            .tint(.primary)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L.tr("Cancel", language: language)) {
@@ -503,35 +506,35 @@ struct CalendarColorSwatch: Identifiable {
 enum CalendarColorPalette {
     static let swatches: [CalendarColorSwatch] = [
         .init(name: "Red", hex: "FF3B30"),
+        .init(name: "Light Red", hex: "FF6961"),
+        .init(name: "Brick", hex: "C0392B"),
+        .init(name: "Rose", hex: "FF375F"),
+        .init(name: "Pink", hex: "FF2D55"),
+        .init(name: "Magenta", hex: "DA70D6"),
+        .init(name: "Coral", hex: "FF7A59"),
+        .init(name: "Terracotta", hex: "D35400"),
         .init(name: "Orange", hex: "FF9500"),
+        .init(name: "Amber", hex: "FFB340"),
+        .init(name: "Gold", hex: "D9A300"),
         .init(name: "Yellow", hex: "FFCC00"),
+        .init(name: "Lime", hex: "7ED957"),
         .init(name: "Green", hex: "34C759"),
+        .init(name: "Emerald", hex: "2ECC71"),
+        .init(name: "Sea Green", hex: "16A085"),
         .init(name: "Mint", hex: "00C7BE"),
         .init(name: "Teal", hex: "30B0C7"),
         .init(name: "Cyan", hex: "32ADE6"),
+        .init(name: "Sky", hex: "64D2FF"),
         .init(name: "Blue", hex: "007AFF"),
+        .init(name: "Navy", hex: "0A84FF"),
+        .init(name: "Steel Blue", hex: "2980B9"),
         .init(name: "Indigo", hex: "5856D6"),
+        .init(name: "Violet", hex: "6C5CE7"),
         .init(name: "Purple", hex: "AF52DE"),
-        .init(name: "Pink", hex: "FF2D55"),
+        .init(name: "Lavender", hex: "BF5AF2"),
         .init(name: "Brown", hex: "A2845E"),
         .init(name: "Gray", hex: "8E8E93"),
-        .init(name: "Dark Gray", hex: "636366"),
-        .init(name: "Light Red", hex: "FF6961"),
-        .init(name: "Coral", hex: "FF7A59"),
-        .init(name: "Amber", hex: "FFB340"),
-        .init(name: "Gold", hex: "D9A300"),
-        .init(name: "Lime", hex: "7ED957"),
-        .init(name: "Emerald", hex: "2ECC71"),
-        .init(name: "Sea Green", hex: "16A085"),
-        .init(name: "Sky", hex: "64D2FF"),
-        .init(name: "Steel Blue", hex: "2980B9"),
-        .init(name: "Navy", hex: "0A84FF"),
-        .init(name: "Lavender", hex: "BF5AF2"),
-        .init(name: "Violet", hex: "6C5CE7"),
-        .init(name: "Rose", hex: "FF375F"),
-        .init(name: "Magenta", hex: "DA70D6"),
-        .init(name: "Terracotta", hex: "D35400"),
-        .init(name: "Brick", hex: "C0392B")
+        .init(name: "Dark Gray", hex: "636366")
     ]
 }
 

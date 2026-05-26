@@ -183,6 +183,7 @@ struct EventEditView: View {
         VStack(spacing: 0) {
             EventRow {
                 Toggle(L.tr("All-day", language: language), isOn: $draft.isAllDay)
+                    .tint(.accentColor)
                     .onChange(of: draft.isAllDay) { _, _ in
                         expandedPicker = nil
                     }

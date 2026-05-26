@@ -39,6 +39,7 @@ final class CalendarViewModel {
     private let googleCalendarService: GoogleCalendarService
     private let preferencesStore: CalendarPreferencesStore
     private var observationTask: Task<Void, Never>?
+    private var visibleIntervalReloadTask: Task<Void, Never>?
     private let monthPageRadius = 12
     private let eventFetchRadius = 2
     private var calendarPreferences: [String: CalendarPreferences]
@@ -52,10 +53,7 @@ final class CalendarViewModel {
         preferencesStore: CalendarPreferencesStore = CalendarPreferencesStore()
     ) {
         let storedState = preferencesStore.load()
-        var storedSettings = storedState.settings
-        if storedSettings.isICloudSyncEnabled && storedSettings.lastICloudSyncAt == nil {
-            storedSettings.isICloudSyncEnabled = false
-        }
+        let storedSettings = storedState.settings
         let configuredCalendar = CalendarMonthBuilder.configuredCalendar(
             base: calendar,
             startOfWeek: storedSettings.startOfWeek
@@ -87,7 +85,7 @@ final class CalendarViewModel {
     }
 
     var shouldShowCalendarUI: Bool {
-        hasConnectedCalendars
+        hasConnectedCalendars || (settings.isICloudSyncEnabled && accessState == .granted)
     }
 
     var displayCalendar: Calendar {
@@ -386,7 +384,7 @@ final class CalendarViewModel {
                     visibility: visibility,
                     availability: availability
                 )
-                await reloadGoogleCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.createEvent(
                     title: title,
@@ -403,7 +401,7 @@ final class CalendarViewModel {
                     visibility: visibility,
                     availability: availability
                 )
-                await reloadCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             }
             return true
         } catch {
@@ -429,7 +427,7 @@ final class CalendarViewModel {
                     calendarID: calendarID,
                     notes: notes
                 )
-                await reloadGoogleCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.createReminder(
                     title: title,
@@ -438,7 +436,7 @@ final class CalendarViewModel {
                     calendarID: calendarID,
                     notes: notes
                 )
-                await reloadCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             }
             return true
         } catch {
@@ -486,7 +484,7 @@ final class CalendarViewModel {
                     recurringEventID: recurringEventID,
                     editScope: editScope
                 )
-                await reloadGoogleCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.updateEvent(
                     eventID: eventID,
@@ -505,7 +503,7 @@ final class CalendarViewModel {
                     availability: availability,
                     editScope: editScope
                 )
-                await reloadCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             }
             return true
         } catch {
@@ -532,7 +530,7 @@ final class CalendarViewModel {
                     isAllDay: isAllDay,
                     notes: notes
                 )
-                await reloadGoogleCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.updateReminder(
                     reminderID: eventID,
@@ -542,7 +540,7 @@ final class CalendarViewModel {
                     calendarID: calendarID,
                     notes: notes
                 )
-                await reloadCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             }
             return true
         } catch {
@@ -583,10 +581,10 @@ final class CalendarViewModel {
             if source?.kind == .reminder {
                 if source?.provider == .google {
                     try await googleCalendarService.deleteTask(eventID: eventID)
-                    await reloadGoogleCalendarsAndEvents()
+                    scheduleVisibleIntervalReload()
                 } else {
                     try eventKitService.deleteReminder(reminderID: eventID)
-                    await reloadCalendarsAndEvents()
+                    scheduleVisibleIntervalReload()
                 }
             } else if source?.provider == .google {
                 try await googleCalendarService.deleteEvent(
@@ -595,14 +593,14 @@ final class CalendarViewModel {
                     recurringEventID: recurringEventID,
                     deleteScope: deleteScope
                 )
-                await reloadGoogleCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.deleteEvent(
                     eventID: eventID,
                     recurringEventID: recurringEventID,
                     deleteScope: deleteScope
                 )
-                await reloadCalendarsAndEvents()
+                scheduleVisibleIntervalReload()
             }
             return true
         } catch {
@@ -786,11 +784,14 @@ final class CalendarViewModel {
 
         replaceCalendarSources(for: .iCloud, with: calendars)
         normalizeCalendarOrderIfNeeded()
-        let iCloudEvents = await eventKitService.fetchEvents(
-            in: interval,
-            calendars: calendars,
-            showsCompletedTasks: settings.showsCompletedTasks
-        )
+        let showsCompletedTasks = settings.showsCompletedTasks
+        let iCloudEvents = await Task.detached {
+            await eventKitService.fetchEvents(
+                in: interval,
+                calendars: calendars,
+                showsCompletedTasks: showsCompletedTasks
+            )
+        }.value
         replaceEvents(for: .iCloud, in: interval, with: iCloudEvents)
         loadedEventIntervals[.iCloud] = interval
         settings.lastICloudSyncAt = Date()
@@ -958,6 +959,13 @@ final class CalendarViewModel {
             await reloadCalendarsAndEvents()
         default:
             break
+        }
+    }
+
+    private func scheduleVisibleIntervalReload() {
+        visibleIntervalReloadTask?.cancel()
+        visibleIntervalReloadTask = Task {
+            await reloadEventsForVisibleInterval()
         }
     }
 
