@@ -158,8 +158,8 @@ struct CalendarRootView: View {
             EventEditView(
                 mode: .create,
                 calendars: viewModel.visibleWritableCalendars + viewModel.visibleWritableTaskCalendars,
-                seedDate: seedDate
-            ) { draft, _ in
+                seedDate: seedDate,
+                onSave: { draft, _ in
                 if draft.kind == .reminder {
                     await viewModel.createTask(
                         title: draft.title,
@@ -185,7 +185,9 @@ struct CalendarRootView: View {
                         availability: draft.availability
                     )
                 }
-            }
+                },
+                onClose: { eventEditorContext = nil }
+            )
         case .edit(let event):
             EventEditView(
                 mode: .edit(eventID: event.id),
@@ -227,12 +229,14 @@ struct CalendarRootView: View {
                         eventID: event.id,
                         calendarID: event.calendarID,
                         recurringEventID: event.recurringEventID,
-                        deleteScope: deleteScope
+                        deleteScope: deleteScope,
+                        cachedEvent: event
                     )
                 } : nil,
                 onToggleTaskCompletion: event.kind == .reminder ? {
                     await viewModel.setTaskCompletion(eventID: event.id, calendarID: event.calendarID, isCompleted: !event.isCompleted)
-                } : nil
+                } : nil,
+                onClose: { eventEditorContext = nil }
             )
         }
     }
