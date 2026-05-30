@@ -340,7 +340,7 @@ final class GoogleCalendarService {
             start: .init(date: isAllDay ? DateFormatter.googleCalendarDay.string(from: startDate) : nil,
                          dateTime: isAllDay ? nil : makeGoogleDateTimeFormatter().string(from: startDate)),
             end: .init(
-                date: isAllDay ? DateFormatter.googleCalendarDay.string(from: allDayEndDate(from: startDate, endDate: endDate)) : nil,
+                date: isAllDay ? DateFormatter.googleCalendarDay.string(from: max(endDate, startDate.addingTimeInterval(86400))) : nil,
                 dateTime: isAllDay ? nil : makeGoogleDateTimeFormatter().string(from: max(endDate, startDate.addingTimeInterval(60)))
             ),
             recurrence: recurrence(for: repeatOption),
@@ -386,7 +386,7 @@ final class GoogleCalendarService {
             start: .init(date: isAllDay ? DateFormatter.googleCalendarDay.string(from: startDate) : nil,
                          dateTime: isAllDay ? nil : makeGoogleDateTimeFormatter().string(from: startDate)),
             end: .init(
-                date: isAllDay ? DateFormatter.googleCalendarDay.string(from: allDayEndDate(from: startDate, endDate: endDate)) : nil,
+                date: isAllDay ? DateFormatter.googleCalendarDay.string(from: max(endDate, startDate.addingTimeInterval(86400))) : nil,
                 dateTime: isAllDay ? nil : makeGoogleDateTimeFormatter().string(from: max(endDate, startDate.addingTimeInterval(60)))
             ),
             recurrence: recurrence(for: repeatOption),
@@ -532,7 +532,10 @@ final class GoogleCalendarService {
             throw NSError(
                 domain: "GoogleCalendarService",
                 code: 3,
-                userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? L.tr("Google Calendar API request failed.", language: .system)]
+                userInfo: [
+                    NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? L.tr("Google Calendar API request failed.", language: .system),
+                    "httpStatusCode": (response as? HTTPURLResponse)?.statusCode ?? -1
+                ]
             )
         }
 
@@ -623,14 +626,6 @@ final class GoogleCalendarService {
         }
 
         return value
-    }
-
-    private func allDayEndDate(from startDate: Date, endDate: Date) -> Date {
-        let calendar = Calendar(identifier: .gregorian)
-        let startDay = calendar.startOfDay(for: startDate)
-        let clampedEnd = max(endDate, startDate)
-        let daySpan = calendar.dateComponents([.day], from: startDay, to: calendar.startOfDay(for: clampedEnd)).day ?? 0
-        return calendar.date(byAdding: .day, value: max(daySpan + 1, 1), to: startDay) ?? startDay.addingTimeInterval(86400)
     }
 
     private func makeGoogleDateTimeFormatter() -> ISO8601DateFormatter {
