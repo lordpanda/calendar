@@ -55,21 +55,39 @@ struct DayScheduleView: View {
                         }
                 )
             }
-            .navigationTitle(date.formatted(.dateTime.weekday(.wide).month(.wide).day().locale(language.locale)))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         onCreateEvent(date)
                     } label: {
                         Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .glassCircle(size: 38)
                     }
+                    .buttonStyle(.plain)
+                }
+
+                ToolbarItem(placement: .principal) {
+                    Text(date.formatted(.dateTime.weekday(.wide).month(.wide).day().locale(language.locale)))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .glassCapsule(horizontal: 14, vertical: 8)
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(L.tr("Close", language: language)) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Text(L.tr("Close", language: language))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .glassCapsule(horizontal: 14, vertical: 8)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
