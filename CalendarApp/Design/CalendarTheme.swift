@@ -5,6 +5,11 @@ enum CalendarTheme {
     static let secondaryBackground = Color(.secondarySystemBackground)
     static let separator = Color(.separator).opacity(0.2)
     static let mutedDay = Color(.systemGray6)
+    static let groupedBackground = Color(.systemGroupedBackground)
+    static let cardBackground = Color(.secondarySystemGroupedBackground)
+    static let accent = Color(hex: "00C8B3") ?? .mint
+    static let monthGridLine = Color(.separator).opacity(0.85)
+    static let monthRowLine = Color(.separator)
 }
 
 extension View {
