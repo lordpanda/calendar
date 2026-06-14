@@ -35,6 +35,7 @@
 "Connect iCloud" = "Apple 연결";
 "Connect iCloud calendars and reminders used on this device." = "현재 기기의 Apple 캘린더와 미리 알림을 연결합니다.";
 "Connected to local calendars through EventKit." = "현재 기기의 Apple 캘린더 및 미리 알림에 연결되었습니다.";
+"Couldn't Save" = "저장할 수 없음";
 "Custom Color" = "사용자 색상";
 "Custom Repeat" = "사용자 반복";
 "Custom..." = "사용자 설정...";
@@ -73,6 +74,7 @@
 "Google OAuth client ID is not configured." = "Google OAuth 클라이언트 ID가 설정되지 않았습니다.";
 "Google Tasks" = "Google Tasks";
 "Google task could not be found." = "Google 태스크를 찾을 수 없습니다.";
+"Google sync timed out." = "Google 동기화 시간이 초과되었습니다.";
 "iCloud Calendar" = "Apple 캘린더";
 "Invitees" = "초대받은 사람";
 "Korean" = "한국어";
@@ -105,9 +107,11 @@
 "Only write-only calendar access is available, so existing events cannot be read." = "쓰기 전용 캘린더 접근만 가능해서 기존 일정을 읽을 수 없습니다.";
 "Only This Event" = "이 일정만";
 "Original name: %@" = "원래 이름: %@";
+"OK" = "확인";
 "Mark Completed" = "완료로 표시";
 "Mark Uncompleted" = "미완료로 표시";
 "Private" = "비공개";
+"Please try again." = "다시 시도해 주세요.";
 "Public" = "공개";
 "Remove Attachment" = "첨부 제거";
 "Remove Video Call" = "화상 통화 제거";

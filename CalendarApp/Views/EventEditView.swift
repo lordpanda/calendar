@@ -10,6 +10,7 @@ struct EventEditView: View {
     let onDelete: ((RecurringEventDeleteScope) async -> Bool)?
     let onToggleTaskCompletion: (() async -> Bool)?
     let onClose: (() -> Void)?
+    let errorMessage: (() -> String?)?
     private let editsRecurringEvent: Bool
 
     @Environment(\.dismiss) private var dismiss
@@ -25,6 +26,7 @@ struct EventEditView: View {
     @State private var isAttachmentPresented = false
     @State private var isCustomRepeatPresented = false
     @State private var isDetailsExpanded = false
+    @State private var presentedErrorMessage: String?
     @FocusState private var focusedField: FocusField?
 
     init(
@@ -36,7 +38,8 @@ struct EventEditView: View {
         onSave: @escaping (Draft, RecurringEventEditScope) async -> Bool,
         onDelete: ((RecurringEventDeleteScope) async -> Bool)? = nil,
         onToggleTaskCompletion: (() async -> Bool)? = nil,
-        onClose: (() -> Void)? = nil
+        onClose: (() -> Void)? = nil,
+        errorMessage: (() -> String?)? = nil
     ) {
         self.mode = mode
         self.calendars = calendars
@@ -44,6 +47,7 @@ struct EventEditView: View {
         self.onDelete = onDelete
         self.onToggleTaskCompletion = onToggleTaskCompletion
         self.onClose = onClose
+        self.errorMessage = errorMessage
         self.editsRecurringEvent = existingEvent?.isRecurring == true
         _itemKind = State(initialValue: existingEvent?.kind ?? .event)
 
@@ -169,6 +173,19 @@ struct EventEditView: View {
                     .tint(.primary)
                 }
             }
+            .alert(
+                L.tr("Couldn't Save", language: language),
+                isPresented: Binding(
+                    get: { presentedErrorMessage != nil },
+                    set: { if !$0 { presentedErrorMessage = nil } }
+                ),
+                actions: {
+                    Button(L.tr("OK", language: language), role: .cancel) {}
+                },
+                message: {
+                    Text(presentedErrorMessage ?? L.tr("Please try again.", language: language))
+                }
+            )
         }
     }
 
@@ -688,9 +705,14 @@ struct EventEditView: View {
             await MainActor.run {
                 isSaving = false
                 pendingRecurringAction = nil
+                if !saved {
+                    presentedErrorMessage = errorMessage?() ?? L.tr("Please try again.", language: language)
+                }
             }
             if saved {
-                await closeEditor()
+                await MainActor.run {
+                    closeEditor()
+                }
             }
         }
     }
@@ -705,9 +727,14 @@ struct EventEditView: View {
             await MainActor.run {
                 isSaving = false
                 pendingRecurringAction = nil
+                if !deleted {
+                    presentedErrorMessage = errorMessage?() ?? L.tr("Please try again.", language: language)
+                }
             }
             if deleted {
-                await closeEditor()
+                await MainActor.run {
+                    closeEditor()
+                }
             }
         }
     }
