@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import UIKit
 
 struct EventEditView: View {
 
@@ -8,6 +9,8 @@ struct EventEditView: View {
     let onSave: (Draft, RecurringEventEditScope) async -> Bool
     let onDelete: ((RecurringEventDeleteScope) async -> Bool)?
     let onToggleTaskCompletion: (() async -> Bool)?
+    let onClose: (() -> Void)?
+    let errorMessage: (() -> String?)?
     private let editsRecurringEvent: Bool
 
     @Environment(\.dismiss) private var dismiss
@@ -23,6 +26,7 @@ struct EventEditView: View {
     @State private var isAttachmentPresented = false
     @State private var isCustomRepeatPresented = false
     @State private var isDetailsExpanded = false
+    @State private var presentedErrorMessage: String?
     @FocusState private var focusedField: FocusField?
 
     init(
@@ -33,13 +37,17 @@ struct EventEditView: View {
         existingEvent: CalendarEvent? = nil,
         onSave: @escaping (Draft, RecurringEventEditScope) async -> Bool,
         onDelete: ((RecurringEventDeleteScope) async -> Bool)? = nil,
-        onToggleTaskCompletion: (() async -> Bool)? = nil
+        onToggleTaskCompletion: (() async -> Bool)? = nil,
+        onClose: (() -> Void)? = nil,
+        errorMessage: (() -> String?)? = nil
     ) {
         self.mode = mode
         self.calendars = calendars
         self.onSave = onSave
         self.onDelete = onDelete
         self.onToggleTaskCompletion = onToggleTaskCompletion
+        self.onClose = onClose
+        self.errorMessage = errorMessage
         self.editsRecurringEvent = existingEvent?.isRecurring == true
         _itemKind = State(initialValue: existingEvent?.kind ?? .event)
 
@@ -135,19 +143,21 @@ struct EventEditView: View {
             .fullScreenCover(isPresented: $isCustomRepeatPresented) {
                 CustomRepeatEditView(selection: $draft.repeatOption)
             }
-            .confirmationDialog(
-                recurringDialogTitle,
+            .sheet(
                 isPresented: Binding(
                     get: { pendingRecurringAction != nil },
                     set: { if !$0 { pendingRecurringAction = nil } }
-                ),
-                titleVisibility: .visible
+                )
             ) {
-                recurringDialogActions
+                recurringActionSheet
+                    .presentationDetents([.height(recurringSheetHeight)])
+                    .presentationDragIndicator(.hidden)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: {
+                    Button {
+                        cancelEditing()
+                    } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.primary)
@@ -163,6 +173,19 @@ struct EventEditView: View {
                     .tint(.primary)
                 }
             }
+            .alert(
+                L.tr("Couldn't Save", language: language),
+                isPresented: Binding(
+                    get: { presentedErrorMessage != nil },
+                    set: { if !$0 { presentedErrorMessage = nil } }
+                ),
+                actions: {
+                    Button(L.tr("OK", language: language), role: .cancel) {}
+                },
+                message: {
+                    Text(presentedErrorMessage ?? L.tr("Please try again.", language: language))
+                }
+            )
         }
     }
 
@@ -184,8 +207,24 @@ struct EventEditView: View {
             EventRow {
                 Toggle(L.tr("All-day", language: language), isOn: $draft.isAllDay)
                     .tint(.accentColor)
-                    .onChange(of: draft.isAllDay) { _, _ in
+                    .onChange(of: draft.isAllDay) { _, isAllDay in
                         expandedPicker = nil
+                        let cal = Calendar.current
+                        if isAllDay {
+                            let startDay = cal.startOfDay(for: draft.startDate)
+                            let endDay = cal.startOfDay(for: draft.endDate)
+                            let span = max(cal.dateComponents([.day], from: startDay, to: endDay).day ?? 0, 0)
+                            draft.startDate = startDay
+                            draft.endDate = cal.date(byAdding: .day, value: max(span + 1, 1), to: startDay) ?? startDay.addingTimeInterval(86400)
+                        } else {
+                            var components = cal.dateComponents([.year, .month, .day], from: draft.startDate)
+                            components.hour = 9
+                            components.minute = 0
+                            components.second = 0
+                            let newStart = cal.date(from: components) ?? draft.startDate
+                            draft.startDate = newStart
+                            draft.endDate = newStart.addingTimeInterval(3600)
+                        }
                     }
             }
             .zIndex(3)
@@ -224,7 +263,6 @@ struct EventEditView: View {
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
     }
 
     private var calendarSection: some View {
@@ -258,7 +296,6 @@ struct EventEditView: View {
                 scrollToSelectedCalendar(with: proxy, animated: true)
             }
         }
-        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
     }
 
     private var detailsCard: some View {
@@ -372,7 +409,6 @@ struct EventEditView: View {
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
     }
 
     private var taskNotesCard: some View {
@@ -388,7 +424,6 @@ struct EventEditView: View {
         .padding(16)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
     }
 
     private var repeatRow: some View {
@@ -430,7 +465,6 @@ struct EventEditView: View {
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
     }
 
     private var deleteCard: some View {
@@ -444,17 +478,18 @@ struct EventEditView: View {
         .disabled(isSaving)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
     }
 
     private var taskCompletionCard: some View {
         Button {
             Task {
                 guard let onToggleTaskCompletion else { return }
-                isSaving = true
+                await MainActor.run { isSaving = true }
                 let updated = await onToggleTaskCompletion()
-                isSaving = false
-                if updated { dismiss() }
+                await MainActor.run { isSaving = false }
+                if updated {
+                    await closeEditor()
+                }
             }
         } label: {
             Text(draft.isCompleted ? L.tr("Mark Uncompleted", language: language) : L.tr("Mark Completed", language: language))
@@ -464,7 +499,6 @@ struct EventEditView: View {
         .disabled(isSaving)
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
     }
 
     // MARK: - Helper Views
@@ -476,7 +510,7 @@ struct EventEditView: View {
                     expandedPicker = expandedPicker == dateFocus ? nil : dateFocus
                 }
             } label: {
-                Text(date.wrappedValue, format: .dateTime.weekday(.wide).month().day())
+                Text(displayedDate(for: dateFocus, rawDate: date.wrappedValue), format: .dateTime.weekday(.wide).month().day())
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentShape(Rectangle())
@@ -516,9 +550,7 @@ struct EventEditView: View {
                 .clipped()
                 .transition(.move(edge: .top))
         } else if expandedPicker == timeFocus {
-            DatePicker("", selection: timeSelectionBinding(for: timeFocus), displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
+            FiveMinuteTimePicker(selection: timeSelectionBinding(for: timeFocus))
                 .background(Color(.systemBackground))
                 .clipped()
                 .transition(.move(edge: .top))
@@ -531,7 +563,7 @@ struct EventEditView: View {
             case .startDate:
                 return draft.startDate
             case .endDate:
-                return draft.endDate
+                return displayedEndDateForAllDay(from: draft.endDate)
             case .startTime:
                 return draft.startDate
             case .endTime:
@@ -545,7 +577,7 @@ struct EventEditView: View {
                     expandedPicker = draft.isAllDay ? .endDate : .startTime
                 }
             case .endDate:
-                draft.endDate = newDate
+                draft.endDate = draft.isAllDay ? storedAllDayEndDate(fromDisplayed: newDate) : newDate
                 withAnimation(.spring(duration: 0.3)) {
                     expandedPicker = nil
                 }
@@ -579,6 +611,25 @@ struct EventEditView: View {
         let delta = newDate.timeIntervalSince(draft.startDate)
         draft.startDate = newDate
         draft.endDate = draft.endDate.addingTimeInterval(delta)
+    }
+
+    private func displayedDate(for focus: PickerFocus, rawDate: Date) -> Date {
+        guard draft.isAllDay, focus == .endDate else {
+            return rawDate
+        }
+        return displayedEndDateForAllDay(from: rawDate)
+    }
+
+    private func displayedEndDateForAllDay(from storedEndDate: Date) -> Date {
+        let calendar = Calendar.current
+        let exclusiveEnd = max(storedEndDate, draft.startDate)
+        return calendar.date(byAdding: .day, value: -1, to: exclusiveEnd) ?? draft.startDate
+    }
+
+    private func storedAllDayEndDate(fromDisplayed displayedEndDate: Date) -> Date {
+        let calendar = Calendar.current
+        let displayedDay = max(calendar.startOfDay(for: displayedEndDate), calendar.startOfDay(for: draft.startDate))
+        return calendar.date(byAdding: .day, value: 1, to: displayedDay) ?? displayedDay.addingTimeInterval(86400)
     }
 
     private func pickerRow<Option: CaseIterable & Identifiable & Hashable>(
@@ -647,22 +698,44 @@ struct EventEditView: View {
 
     private func performSave(scope: RecurringEventEditScope) {
         Task {
-            isSaving = true
+            await MainActor.run {
+                isSaving = true
+            }
             let saved = await onSave(draft, scope)
-            isSaving = false
-            pendingRecurringAction = nil
-            if saved { dismiss() }
+            await MainActor.run {
+                isSaving = false
+                pendingRecurringAction = nil
+                if !saved {
+                    presentedErrorMessage = errorMessage?() ?? L.tr("Please try again.", language: language)
+                }
+            }
+            if saved {
+                await MainActor.run {
+                    closeEditor()
+                }
+            }
         }
     }
 
     private func performDelete(scope: RecurringEventDeleteScope) {
         Task {
             guard let onDelete else { return }
-            isSaving = true
+            await MainActor.run {
+                isSaving = true
+            }
             let deleted = await onDelete(scope)
-            isSaving = false
-            pendingRecurringAction = nil
-            if deleted { dismiss() }
+            await MainActor.run {
+                isSaving = false
+                pendingRecurringAction = nil
+                if !deleted {
+                    presentedErrorMessage = errorMessage?() ?? L.tr("Please try again.", language: language)
+                }
+            }
+            if deleted {
+                await MainActor.run {
+                    closeEditor()
+                }
+            }
         }
     }
 
@@ -677,30 +750,67 @@ struct EventEditView: View {
         }
     }
 
-    @ViewBuilder
-    private var recurringDialogActions: some View {
+    private var recurringSheetHeight: CGFloat {
         switch pendingRecurringAction {
-        case .save:
-            Button(L.tr("Only This Event", language: language)) {
-                performSave(scope: .thisEvent)
-            }
-            Button(L.tr("This and Future Events", language: language)) {
-                performSave(scope: .futureEvents)
-            }
-        case .delete:
-            Button(L.tr("Only This Event", language: language), role: .destructive) {
-                performDelete(scope: .thisEvent)
-            }
-            Button(L.tr("All Events", language: language), role: .destructive) {
-                performDelete(scope: .allEvents)
-            }
+        case .save, .delete:
+            return 232
         case nil:
-            EmptyView()
+            return 120
         }
+    }
 
-        Button(L.tr("Cancel", language: language), role: .cancel) {
-            pendingRecurringAction = nil
+    @ViewBuilder
+    private var recurringActionSheet: some View {
+        VStack(spacing: 0) {
+            Text(recurringDialogTitle)
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 20)
+                .padding(.bottom, 12)
+
+            Divider()
+
+            switch pendingRecurringAction {
+            case .save:
+                recurringSheetButton(L.tr("Only This Event", language: language)) {
+                    performSave(scope: .thisEvent)
+                }
+                recurringSheetButton(L.tr("This and Future Events", language: language)) {
+                    performSave(scope: .futureEvents)
+                }
+            case .delete:
+                recurringSheetButton(L.tr("Only This Event", language: language), role: .destructive) {
+                    performDelete(scope: .thisEvent)
+                }
+                recurringSheetButton(L.tr("All Events", language: language), role: .destructive) {
+                    performDelete(scope: .allEvents)
+                }
+            case nil:
+                EmptyView()
+            }
+
+            Divider()
+
+            recurringSheetButton(L.tr("Cancel", language: language), role: .cancel) {
+                pendingRecurringAction = nil
+            }
         }
+        .background(Color(.systemBackground))
+    }
+
+    private func recurringSheetButton(
+        _ title: String,
+        role: ButtonRole? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(role: role, action: action) {
+            Text(title)
+                .font(.body)
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(role == .destructive ? .red : .primary)
     }
 
     // MARK: - Computed Properties
@@ -784,6 +894,18 @@ struct EventEditView: View {
         focusedField = nil
     }
 
+    private func cancelEditing() {
+        Task { await closeEditor() }
+    }
+
+    @MainActor
+    private func closeEditor() {
+        expandedPicker = nil
+        focusedField = nil
+        onClose?()
+        dismiss()
+    }
+
     private static func defaultStartDate(seedDate: Date?) -> Date {
         let calendar = Calendar.current
         let now = Date()
@@ -814,5 +936,63 @@ struct EventEditView: View {
         day.hour = time.hour
         day.minute = time.minute
         return calendar.date(from: day) ?? seedDate
+    }
+}
+
+private struct FiveMinuteTimePicker: UIViewRepresentable {
+    @Binding var selection: Date
+
+    func makeUIView(context: Context) -> UIDatePicker {
+        let picker = UIDatePicker()
+        picker.datePickerMode = .time
+        picker.preferredDatePickerStyle = .wheels
+        picker.minuteInterval = 5
+        picker.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.valueChanged(_:)),
+            for: .valueChanged
+        )
+        return picker
+    }
+
+    func updateUIView(_ picker: UIDatePicker, context: Context) {
+        let rounded = Self.roundedToFiveMinutes(selection)
+        if abs(picker.date.timeIntervalSince(rounded)) > 0.5 {
+            picker.setDate(rounded, animated: false)
+        }
+        if selection != rounded {
+            DispatchQueue.main.async {
+                selection = rounded
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(selection: $selection)
+    }
+
+    private static func roundedToFiveMinutes(_ date: Date) -> Date {
+        let calendar = Calendar.current
+        let minute = calendar.component(.minute, from: date)
+        let remainder = minute % 5
+        let withoutSeconds = calendar.date(bySetting: .second, value: 0, of: date) ?? date
+        guard remainder != 0 else { return withoutSeconds }
+
+        let roundedMinute = minute + (remainder >= 3 ? 5 - remainder : -remainder)
+        return calendar.date(byAdding: .minute, value: roundedMinute - minute, to: withoutSeconds) ?? withoutSeconds
+    }
+
+    final class Coordinator: NSObject {
+        @Binding private var selection: Date
+
+        init(selection: Binding<Date>) {
+            _selection = selection
+        }
+
+        @MainActor
+        @objc
+        func valueChanged(_ picker: UIDatePicker) {
+            selection = picker.date
+        }
     }
 }

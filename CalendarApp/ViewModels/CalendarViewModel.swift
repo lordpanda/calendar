@@ -75,7 +75,9 @@ final class CalendarViewModel {
             calendar: configuredCalendar
         )
         calendarSources = mergeLocalCalendarState(into: storedState.cachedCalendarSources)
-        events = storedState.cachedEvents
+        events = storedState.cachedEvents.filter { event in
+            calendarSources.contains { $0.id == event.calendarID }
+        }
         accessState = eventKitService.currentAccessState()
         googleAuthState = googleCalendarService.authState
     }
@@ -203,13 +205,18 @@ final class CalendarViewModel {
         await googleCalendarService.restorePreviousSignInIfPossible()
         googleAuthState = googleCalendarService.authState
 
-        if googleAuthState.isSignedIn {
-            selectedProvider = .google
-            await reloadGoogleCalendarsAndEvents()
-        } else if settings.isICloudSyncEnabled && accessState == .granted {
-            selectedProvider = .iCloud
-            await reloadCalendarsAndEvents()
-            startObservingStoreChangesIfNeeded()
+        if googleAuthState.isSignedIn || (settings.isICloudSyncEnabled && accessState == .granted) {
+            if googleAuthState.isSignedIn {
+                selectedProvider = .google
+            } else {
+                selectedProvider = .iCloud
+            }
+
+            await reloadConnectedProvidersForVisibleInterval()
+
+            if settings.isICloudSyncEnabled && accessState == .granted {
+                startObservingStoreChangesIfNeeded()
+            }
         } else {
             loadState = .idle
         }
@@ -253,14 +260,15 @@ final class CalendarViewModel {
 
     func connectGoogle(presentingViewController: UIViewController) async {
         isGoogleSyncInProgress = true
+        let timeoutTask = startGoogleProgressTimeout()
         defer { isGoogleSyncInProgress = false }
+        defer { timeoutTask.cancel() }
 
         selectedProvider = .google
         loadState = .loading
 
         do {
-            try await googleCalendarService.signIn(presentingViewController: presentingViewController)
-            googleAuthState = googleCalendarService.authState
+            googleAuthState = try await googleCalendarService.signIn(presentingViewController: presentingViewController)
             await reloadGoogleCalendarsAndEvents()
         } catch {
             googleAuthState = googleCalendarService.authState
@@ -330,7 +338,9 @@ final class CalendarViewModel {
     func refreshGoogleNow() async {
         guard googleAuthState.isSignedIn else { return }
         isGoogleSyncInProgress = true
+        let timeoutTask = startGoogleProgressTimeout()
         defer { isGoogleSyncInProgress = false }
+        defer { timeoutTask.cancel() }
 
         selectedProvider = .google
         await reloadGoogleCalendarsAndEvents()
@@ -339,16 +349,18 @@ final class CalendarViewModel {
     func refreshAfterReturningToForeground() async {
         guard isInitialLoadComplete else { return }
 
-        switch selectedProvider {
-        case .google where googleAuthState.isSignedIn:
-            await refreshGoogleNow()
-        case .iCloud where settings.isICloudSyncEnabled:
-            refreshCalendarAccessState()
-            guard accessState == .granted else { return }
-            await reloadCalendarsAndEvents()
+        refreshCalendarAccessState()
+        await googleCalendarService.restorePreviousSignInIfPossible()
+        googleAuthState = googleCalendarService.authState
+
+        guard googleAuthState.isSignedIn || (settings.isICloudSyncEnabled && accessState == .granted) else {
+            return
+        }
+
+        await reloadConnectedProvidersForVisibleInterval()
+
+        if settings.isICloudSyncEnabled && accessState == .granted {
             startObservingStoreChangesIfNeeded()
-        default:
-            break
         }
     }
 
@@ -369,7 +381,7 @@ final class CalendarViewModel {
     ) async -> Bool {
         do {
             if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
-                try await googleCalendarService.createEvent(
+                let createdEvent = try await googleCalendarService.createEvent(
                     title: title,
                     startDate: startDate,
                     endDate: endDate,
@@ -384,9 +396,25 @@ final class CalendarViewModel {
                     visibility: visibility,
                     availability: availability
                 )
+                upsertCachedEvent(createdEvent)
                 scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.createEvent(
+                    title: title,
+                    startDate: startDate,
+                    endDate: endDate,
+                    isAllDay: isAllDay,
+                    calendarID: calendarID,
+                    location: location,
+                    notes: notes,
+                    repeatOption: repeatOption,
+                    invitees: invitees,
+                    attachmentURL: attachmentURL,
+                    alertOption: alertOption,
+                    visibility: visibility,
+                    availability: availability
+                )
+                insertCachedEvent(
                     title: title,
                     startDate: startDate,
                     endDate: endDate,
@@ -420,16 +448,24 @@ final class CalendarViewModel {
     ) async -> Bool {
         do {
             if calendarSources.first(where: { $0.id == calendarID })?.provider == .google {
-                try await googleCalendarService.createTask(
+                let createdTask = try await googleCalendarService.createTask(
                     title: title,
                     dueDate: dueDate,
                     isAllDay: isAllDay,
                     calendarID: calendarID,
                     notes: notes
                 )
+                upsertCachedEvent(createdTask)
                 scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.createReminder(
+                    title: title,
+                    dueDate: dueDate,
+                    isAllDay: isAllDay,
+                    calendarID: calendarID,
+                    notes: notes
+                )
+                insertCachedTask(
                     title: title,
                     dueDate: dueDate,
                     isAllDay: isAllDay,
@@ -484,6 +520,22 @@ final class CalendarViewModel {
                     recurringEventID: recurringEventID,
                     editScope: editScope
                 )
+                updateCachedEvent(
+                    eventID: eventID,
+                    title: title,
+                    startDate: startDate,
+                    endDate: endDate,
+                    isAllDay: isAllDay,
+                    calendarID: calendarID,
+                    location: location,
+                    notes: notes,
+                    repeatOption: repeatOption,
+                    invitees: invitees,
+                    attachmentURL: attachmentURL,
+                    alertOption: alertOption,
+                    visibility: visibility,
+                    availability: availability
+                )
                 scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.updateEvent(
@@ -502,6 +554,22 @@ final class CalendarViewModel {
                     visibility: visibility,
                     availability: availability,
                     editScope: editScope
+                )
+                updateCachedEvent(
+                    eventID: eventID,
+                    title: title,
+                    startDate: startDate,
+                    endDate: endDate,
+                    isAllDay: isAllDay,
+                    calendarID: calendarID,
+                    location: location,
+                    notes: notes,
+                    repeatOption: repeatOption,
+                    invitees: invitees,
+                    attachmentURL: attachmentURL,
+                    alertOption: alertOption,
+                    visibility: visibility,
+                    availability: availability
                 )
                 scheduleVisibleIntervalReload()
             }
@@ -530,6 +598,13 @@ final class CalendarViewModel {
                     isAllDay: isAllDay,
                     notes: notes
                 )
+                updateCachedTask(
+                    eventID: eventID,
+                    title: title,
+                    dueDate: dueDate,
+                    isAllDay: isAllDay,
+                    notes: notes
+                )
                 scheduleVisibleIntervalReload()
             } else {
                 try eventKitService.updateReminder(
@@ -538,6 +613,13 @@ final class CalendarViewModel {
                     dueDate: dueDate,
                     isAllDay: isAllDay,
                     calendarID: calendarID,
+                    notes: notes
+                )
+                updateCachedTask(
+                    eventID: eventID,
+                    title: title,
+                    dueDate: dueDate,
+                    isAllDay: isAllDay,
                     notes: notes
                 )
                 scheduleVisibleIntervalReload()
@@ -574,17 +656,23 @@ final class CalendarViewModel {
         eventID: String,
         calendarID: String,
         recurringEventID: String? = nil,
-        deleteScope: RecurringEventDeleteScope = .thisEvent
+        deleteScope: RecurringEventDeleteScope = .thisEvent,
+        cachedEvent: CalendarEvent? = nil
     ) async -> Bool {
+        if eventID.hasPrefix("local-") {
+            finalizeDeletedEvent(cachedEvent)
+            return true
+        }
+
         do {
             let source = calendarSources.first(where: { $0.id == calendarID })
             if source?.kind == .reminder {
                 if source?.provider == .google {
                     try await googleCalendarService.deleteTask(eventID: eventID)
-                    scheduleVisibleIntervalReload()
+                    finalizeDeletedEvent(cachedEvent)
                 } else {
                     try eventKitService.deleteReminder(reminderID: eventID)
-                    scheduleVisibleIntervalReload()
+                    finalizeDeletedEvent(cachedEvent)
                 }
             } else if source?.provider == .google {
                 try await googleCalendarService.deleteEvent(
@@ -593,17 +681,21 @@ final class CalendarViewModel {
                     recurringEventID: recurringEventID,
                     deleteScope: deleteScope
                 )
-                scheduleVisibleIntervalReload()
+                finalizeDeletedEvent(cachedEvent)
             } else {
                 try eventKitService.deleteEvent(
                     eventID: eventID,
                     recurringEventID: recurringEventID,
                     deleteScope: deleteScope
                 )
-                scheduleVisibleIntervalReload()
+                finalizeDeletedEvent(cachedEvent)
             }
             return true
         } catch {
+            if sourceIsGoogle(calendarID), isNotFoundError(error) {
+                finalizeDeletedEvent(cachedEvent)
+                return true
+            }
             lastErrorMessage = error.localizedDescription
             loadState = .failed(error.localizedDescription)
             return false
@@ -811,8 +903,25 @@ final class CalendarViewModel {
         }
     }
 
+    private func startGoogleProgressTimeout() -> Task<Void, Never> {
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.isGoogleSyncInProgress else { return }
+                self.isGoogleSyncInProgress = false
+                self.lastErrorMessage = L.tr("Google sync timed out.", language: .system)
+                self.loadState = .failed(self.lastErrorMessage ?? L.tr("Google sync timed out.", language: .system))
+            }
+        }
+    }
+
     private func reloadGoogleCalendarsAndEvents() async {
         loadState = .loading
+        let hasExistingGoogleData = calendarSources.contains { $0.provider == .google }
+            || events.contains { event in
+                calendarSources.first(where: { $0.id == event.calendarID })?.provider == .google
+            }
 
         do {
             let calendars = try await googleCalendarService.fetchCalendars()
@@ -831,12 +940,9 @@ final class CalendarViewModel {
             persistStoredState()
             loadState = .loaded
         } catch {
-            calendarSources.removeAll { $0.provider == .google }
-            events.removeAll { event in
-                calendarSources.first(where: { $0.id == event.calendarID }) == nil
-            }
+            googleAuthState = googleCalendarService.authState
             lastErrorMessage = error.localizedDescription
-            loadState = .failed(error.localizedDescription)
+            loadState = hasExistingGoogleData ? .loaded : .failed(error.localizedDescription)
         }
     }
 
@@ -847,16 +953,234 @@ final class CalendarViewModel {
 
     private func replaceEvents(for provider: CalendarProviderKind, in interval: DateInterval, with providerEvents: [CalendarEvent]) {
         let providerCalendarIDs = Set(calendarSources.filter { $0.provider == provider }.map(\.id))
-        events.removeAll { event in
-            providerCalendarIDs.contains(event.calendarID) && event.intersects(interval)
+        if provider == .google {
+            events.removeAll { event in
+                providerCalendarIDs.contains(event.calendarID) && event.intersects(interval)
+            }
+            events.append(contentsOf: providerEvents)
+            events.sort { $0.startDate < $1.startDate }
+            return
         }
+
+        let pendingLocalEvents = events.filter { event in
+            event.id.hasPrefix("local-")
+                && providerCalendarIDs.contains(event.calendarID)
+                && event.intersects(interval)
+        }
+        events.removeAll { event in
+            providerCalendarIDs.contains(event.calendarID)
+                && event.intersects(interval)
+                && !event.id.hasPrefix("local-")
+        }
+        let unmatchedPendingLocalEvents = pendingLocalEvents.filter { localEvent in
+            !providerEvents.contains { serverEvent in
+                eventsMatchForReconciliation(localEvent, serverEvent)
+            }
+        }
+        events.append(contentsOf: unmatchedPendingLocalEvents)
         events.append(contentsOf: providerEvents)
         events.sort { $0.startDate < $1.startDate }
+    }
+
+    private func upsertCachedEvent(_ event: CalendarEvent) {
+        events.removeAll { $0.id == event.id }
+        events.append(event)
+        events.sort { $0.startDate < $1.startDate }
+        persistStoredState()
+    }
+
+    private func eventsMatchForReconciliation(_ lhs: CalendarEvent, _ rhs: CalendarEvent) -> Bool {
+        guard lhs.calendarID == rhs.calendarID,
+              lhs.kind == rhs.kind,
+              lhs.isAllDay == rhs.isAllDay,
+              lhs.title.trimmingCharacters(in: .whitespacesAndNewlines) == rhs.title.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return false
+        }
+
+        let startDelta = abs(lhs.startDate.timeIntervalSince(rhs.startDate))
+        let endDelta = abs(lhs.endDate.timeIntervalSince(rhs.endDate))
+        guard startDelta < 60, endDelta < 60 else {
+            return false
+        }
+
+        let lhsNotes = lhs.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhsNotes = rhs.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lhsLocation = lhs.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhsLocation = rhs.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return lhsNotes == rhsNotes && lhsLocation == rhsLocation
     }
 
     private func updateCachedTaskCompletion(eventID: String, isCompleted: Bool) {
         guard let index = events.firstIndex(where: { $0.id == eventID }) else { return }
         events[index].isCompleted = isCompleted
+        persistStoredState()
+    }
+
+    private func removeCachedEvent(matching event: CalendarEvent) {
+        let trimmedTitle = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNotes = event.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLocation = event.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        events.removeAll { cached in
+            guard cached.calendarID == event.calendarID,
+                  cached.kind == event.kind,
+                  cached.isAllDay == event.isAllDay,
+                  cached.title.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedTitle else {
+                return false
+            }
+
+            let startDelta = abs(cached.startDate.timeIntervalSince(event.startDate))
+            let endDelta = abs(cached.endDate.timeIntervalSince(event.endDate))
+            guard startDelta < 60, endDelta < 60 else {
+                return false
+            }
+
+            let cachedNotes = cached.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cachedLocation = cached.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return cachedNotes == trimmedNotes && cachedLocation == trimmedLocation
+        }
+
+        persistStoredState()
+    }
+
+    private func finalizeDeletedEvent(_ cachedEvent: CalendarEvent?) {
+        if let cachedEvent {
+            removeCachedEvent(matching: cachedEvent)
+        }
+        scheduleVisibleIntervalReload()
+    }
+
+    private func sourceIsGoogle(_ calendarID: String) -> Bool {
+        calendarSources.first(where: { $0.id == calendarID })?.provider == .google
+    }
+
+    private func isNotFoundError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == "GoogleCalendarService", nsError.userInfo["httpStatusCode"] as? Int == 404 {
+            return true
+        }
+
+        let description = nsError.localizedDescription.lowercased()
+        return description.contains("not found") || description.contains("notfound")
+    }
+
+    private func insertCachedEvent(
+        title: String,
+        startDate: Date,
+        endDate: Date,
+        isAllDay: Bool,
+        calendarID: String,
+        location: String?,
+        notes: String?,
+        repeatOption: EventRepeatOption,
+        invitees: [String],
+        attachmentURL: String?,
+        alertOption: EventAlertOption,
+        visibility: EventVisibilityOption,
+        availability: EventAvailabilityOption
+    ) {
+        let event = CalendarEvent(
+            id: "local-\(UUID().uuidString)",
+            calendarID: calendarID,
+            recurringEventID: nil,
+            kind: .event,
+            title: title.isEmpty ? L.tr("Untitled", language: .system) : title,
+            location: location,
+            notes: notes,
+            startDate: startDate,
+            endDate: max(endDate, startDate.addingTimeInterval(60)),
+            isAllDay: isAllDay,
+            repeatOption: repeatOption,
+            invitees: invitees,
+            attachmentURL: attachmentURL,
+            alertOption: alertOption,
+            visibility: visibility,
+            availability: availability
+        )
+        events.append(event)
+        events.sort { $0.startDate < $1.startDate }
+        persistStoredState()
+    }
+
+    private func insertCachedTask(
+        title: String,
+        dueDate: Date,
+        isAllDay: Bool,
+        calendarID: String,
+        notes: String?
+    ) {
+        let startDate = isAllDay ? calendar.startOfDay(for: dueDate) : dueDate
+        let endDate = isAllDay
+            ? calendar.date(byAdding: .day, value: 1, to: startDate) ?? startDate.addingTimeInterval(86400)
+            : dueDate.addingTimeInterval(60 * 30)
+        let task = CalendarEvent(
+            id: "local-\(UUID().uuidString)",
+            calendarID: calendarID,
+            recurringEventID: nil,
+            kind: .reminder,
+            title: title.isEmpty ? L.tr("Untitled Reminder", language: .system) : title,
+            location: nil,
+            notes: notes,
+            startDate: startDate,
+            endDate: endDate,
+            isAllDay: isAllDay,
+            isCompleted: false
+        )
+        events.append(task)
+        events.sort { $0.startDate < $1.startDate }
+        persistStoredState()
+    }
+
+    private func updateCachedEvent(
+        eventID: String,
+        title: String,
+        startDate: Date,
+        endDate: Date,
+        isAllDay: Bool,
+        calendarID: String,
+        location: String?,
+        notes: String?,
+        repeatOption: EventRepeatOption,
+        invitees: [String],
+        attachmentURL: String?,
+        alertOption: EventAlertOption,
+        visibility: EventVisibilityOption,
+        availability: EventAvailabilityOption
+    ) {
+        guard let index = events.firstIndex(where: { $0.id == eventID }) else { return }
+        events[index].title = title.isEmpty ? L.tr("Untitled", language: .system) : title
+        events[index].startDate = startDate
+        events[index].endDate = max(endDate, startDate.addingTimeInterval(60))
+        events[index].isAllDay = isAllDay
+        events[index].calendarID = calendarID
+        events[index].location = location
+        events[index].notes = notes
+        events[index].repeatOption = repeatOption
+        events[index].invitees = invitees
+        events[index].attachmentURL = attachmentURL
+        events[index].alertOption = alertOption
+        events[index].visibility = visibility
+        events[index].availability = availability
+        events.sort { $0.startDate < $1.startDate }
+        persistStoredState()
+    }
+
+    private func updateCachedTask(
+        eventID: String,
+        title: String,
+        dueDate: Date,
+        isAllDay: Bool,
+        notes: String?
+    ) {
+        guard let index = events.firstIndex(where: { $0.id == eventID }) else { return }
+        events[index].title = title.isEmpty ? L.tr("Untitled Reminder", language: .system) : title
+        events[index].startDate = isAllDay ? calendar.startOfDay(for: dueDate) : dueDate
+        events[index].endDate = isAllDay
+            ? calendar.date(byAdding: .day, value: 1, to: events[index].startDate) ?? events[index].startDate.addingTimeInterval(86400)
+            : dueDate.addingTimeInterval(60 * 30)
+        events[index].isAllDay = isAllDay
+        events[index].notes = notes
+        events.sort { $0.startDate < $1.startDate }
         persistStoredState()
     }
 
@@ -952,14 +1276,7 @@ final class CalendarViewModel {
     }
 
     private func reloadEventsForVisibleInterval() async {
-        switch selectedProvider {
-        case .google where googleAuthState.isSignedIn:
-            await reloadGoogleCalendarsAndEvents()
-        case .iCloud where accessState == .granted:
-            await reloadCalendarsAndEvents()
-        default:
-            break
-        }
+        await reloadConnectedProvidersForVisibleInterval()
     }
 
     private func scheduleVisibleIntervalReload() {
@@ -970,28 +1287,54 @@ final class CalendarViewModel {
     }
 
     private func reloadEventsForSelectedMonthIfNeeded() async {
-        guard let provider = activeEventProvider(),
-              let monthInterval = calendar.dateInterval(of: .month, for: selectedMonthID) else {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: selectedMonthID) else {
             return
         }
 
-        if let loadedInterval = loadedEventIntervals[provider],
-           loadedInterval.start <= monthInterval.start,
-           loadedInterval.end >= monthInterval.end {
+        let needsReload = activeEventProviders().contains { provider in
+            guard let loadedInterval = loadedEventIntervals[provider] else {
+                return true
+            }
+
+            return loadedInterval.start > monthInterval.start || loadedInterval.end < monthInterval.end
+        }
+
+        if !needsReload {
             return
         }
 
         await reloadEventsForVisibleInterval()
     }
 
-    private func activeEventProvider() -> CalendarProviderKind? {
-        switch selectedProvider {
-        case .google where googleAuthState.isSignedIn:
-            return .google
-        case .iCloud where accessState == .granted:
-            return .iCloud
-        default:
-            return nil
+    private func activeEventProviders() -> [CalendarProviderKind] {
+        var providers: [CalendarProviderKind] = []
+
+        if settings.isICloudSyncEnabled && accessState == .granted {
+            providers.append(.iCloud)
+        }
+
+        if googleAuthState.isSignedIn {
+            providers.append(.google)
+        }
+
+        return providers
+    }
+
+    private func reloadConnectedProvidersForVisibleInterval() async {
+        var reloadedAnyProvider = false
+
+        if settings.isICloudSyncEnabled && accessState == .granted {
+            await reloadCalendarsAndEvents()
+            reloadedAnyProvider = true
+        }
+
+        if googleAuthState.isSignedIn {
+            await reloadGoogleCalendarsAndEvents()
+            reloadedAnyProvider = true
+        }
+
+        if !reloadedAnyProvider {
+            loadState = .idle
         }
     }
 

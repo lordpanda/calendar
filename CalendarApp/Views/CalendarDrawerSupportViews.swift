@@ -163,7 +163,7 @@ struct CalendarSettingsView: View {
             .padding(.top, 24)
             .padding(.bottom, 32)
         }
-        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .background(CalendarTheme.groupedBackground.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -173,8 +173,6 @@ struct CalendarSettingsView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.primary)
-                        .frame(width: 44, height: 44)
-                        .background(.white.opacity(0.72), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(L.tr("Back", language: language))
@@ -255,13 +253,13 @@ struct CalendarSettingsView: View {
             VStack(spacing: 0) {
                 content()
             }
-            .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(CalendarTheme.cardBackground, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
     }
 
     private var settingsDivider: some View {
         Divider()
-            .overlay(Color(.separator))
+            .overlay(CalendarTheme.separator)
             .padding(.horizontal, 16)
     }
 
@@ -290,7 +288,7 @@ struct CalendarSettingsView: View {
             HStack(spacing: 8) {
                 Toggle("", isOn: isOn)
                     .labelsHidden()
-                    .tint(Color(red: 0.0, green: 0.77, blue: 0.68))
+                    .tint(CalendarTheme.accent)
                     .disabled(isDisabled)
 
                 if isLoading {
@@ -317,7 +315,7 @@ struct CalendarSettingsView: View {
 
             Toggle("", isOn: isOn)
                 .labelsHidden()
-                .tint(Color(red: 0.0, green: 0.77, blue: 0.68))
+                .tint(CalendarTheme.accent)
         }
         .frame(minHeight: 52)
         .padding(.horizontal, 16)

@@ -36,6 +36,7 @@
 "Connect iCloud" = "Connect Apple";
 "Connect iCloud calendars and reminders used on this device." = "Connect Apple calendars and reminders on this device.";
 "Connected to local calendars through EventKit." = "Connected to Apple calendars and reminders on this device.";
+"Couldn't Save" = "Couldn't Save";
 "Custom Color" = "Custom Color";
 "Custom Repeat" = "Custom Repeat";
 "Custom..." = "Custom...";
@@ -74,6 +75,7 @@
 "Google OAuth client ID is not configured." = "Google OAuth client ID is not configured.";
 "Google Tasks" = "Google Tasks";
 "Google task could not be found." = "Google task could not be found.";
+"Google sync timed out." = "Google sync timed out.";
 "iCloud Calendar" = "Apple Calendar";
 "Invitees" = "Invitees";
 "Korean" = "Korean";
@@ -105,9 +107,11 @@
 "Only write-only access is available, so calendars cannot be listed." = "Only write-only access is available, so calendars cannot be listed.";
 "Only write-only calendar access is available, so existing events cannot be read." = "Only write-only calendar access is available, so existing events cannot be read.";
 "Only This Event" = "Only This Event";
+"OK" = "OK";
 "Original name: %@" = "Original name: %@";
 "Mark Completed" = "Mark Completed";
 "Mark Uncompleted" = "Mark Uncompleted";
+"Please try again." = "Please try again.";
 "Private" = "Private";
 "Public" = "Public";
 "Remove Attachment" = "Remove Attachment";

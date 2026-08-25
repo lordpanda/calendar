@@ -65,7 +65,7 @@ struct MonthScrollView: View {
             if isYearOverviewPresented {
                 YearOverviewHeaderControls(
                     onSearch: { isSearchPresented = true },
-                    onAdd: { onCreateEvent(Date()) }
+                    onMenu: { isDrawerPresented = true }
                 )
                 .padding(.horizontal, 24)
                 .padding(.top, 44)
@@ -154,7 +154,7 @@ private struct HeaderView: View {
 
 private struct YearOverviewHeaderControls: View {
     let onSearch: () -> Void
-    let onAdd: () -> Void
+    let onMenu: () -> Void
     @Environment(\.appLanguage) private var language
 
     var body: some View {
@@ -164,25 +164,25 @@ private struct YearOverviewHeaderControls: View {
             HStack(spacing: 20) {
                 Button(action: onSearch) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 26, weight: .regular))
+                        .font(.system(size: 17, weight: .regular))
                 }
                 .buttonStyle(.plain)
-                .frame(width: 44, height: 48)
+                .frame(width: 36, height: 44)
                 .contentShape(Rectangle())
                 .accessibilityLabel(L.tr("Search", language: language))
 
-                Button(action: onAdd) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 28, weight: .regular))
+                Button(action: onMenu) {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 17, weight: .regular))
                 }
                 .buttonStyle(.plain)
-                .frame(width: 44, height: 48)
+                .frame(width: 36, height: 44)
                 .contentShape(Rectangle())
-                .accessibilityLabel(L.tr("Add", language: language))
+                .accessibilityLabel(L.tr("Calendars and settings", language: language))
             }
             .foregroundStyle(.primary)
-            .frame(height: 56)
-            .glassCapsule(horizontal: 12, vertical: 0)
+            .frame(height: 44)
+            .glassCapsule(horizontal: 8, vertical: 0)
         }
     }
 }
@@ -506,14 +506,14 @@ private struct MonthSectionView: View {
                             if index == 0 {
                                 Rectangle()
                                     .fill(Self.separatorColor)
-                                    .frame(height: 0.25)
+                                    .frame(height: 0.5)
                             }
                         }
                         .overlay(alignment: .bottom) {
                             if !isLast {
                                 Rectangle()
                                     .fill(Self.separatorColor)
-                                    .frame(height: 0.25)
+                                    .frame(height: 0.5)
                             }
                         }
                     }
@@ -524,7 +524,7 @@ private struct MonthSectionView: View {
         }
     }
 
-    private static let separatorColor = Color(hex: "C6C6C8") ?? Color(.opaqueSeparator)
+    private static let separatorColor = CalendarTheme.monthRowLine
 }
 
 private struct WeekdayHeaderView: View {
@@ -756,8 +756,8 @@ private struct DayCellView: View {
         calendar.isDateInToday(day.date)
     }
 
-    private static let todayColor = Color(hex: "00C8B3") ?? .accentColor
-    private static let separatorColor = Color(hex: "C6C6C8") ?? Color(.opaqueSeparator)
+    private static let todayColor = CalendarTheme.accent
+    private static let separatorColor = CalendarTheme.monthGridLine
 
     var body: some View {
         Button(action: onSelectDay) {
@@ -786,7 +786,7 @@ private struct DayCellView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(CalendarTheme.background)
             .overlay {
-                Rectangle().stroke(Self.separatorColor, lineWidth: 0.25)
+                Rectangle().stroke(Self.separatorColor, lineWidth: 0.4)
             }
         }
         .buttonStyle(.plain)

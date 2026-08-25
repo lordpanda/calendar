@@ -38,11 +38,12 @@ final class GoogleCalendarService {
         do {
             _ = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
         } catch {
-            // Ignore restore failures and stay signed out.
+            // Clear any stale local session so the next interactive sign-in starts cleanly.
+            GIDSignIn.sharedInstance.signOut()
         }
     }
 
-    func signIn(presentingViewController: UIViewController) async throws {
+    func signIn(presentingViewController: UIViewController) async throws -> AuthState {
         guard clientID != nil else {
             throw NSError(
                 domain: "GoogleCalendarService",
@@ -60,11 +61,13 @@ final class GoogleCalendarService {
         }
 
         configureSignInIfPossible()
-        _ = try await GIDSignIn.sharedInstance.signIn(
+        await discardStaleSessionIfNeeded()
+        let result = try await GIDSignIn.sharedInstance.signIn(
             withPresenting: presentingViewController,
             hint: nil,
             additionalScopes: [calendarScope, tasksScope]
         )
+        return authState(for: result.user)
     }
 
     private func configureSignInIfPossible() {
@@ -74,6 +77,52 @@ final class GoogleCalendarService {
 
     func signOut() {
         GIDSignIn.sharedInstance.signOut()
+    }
+
+    private func authState(for user: GIDGoogleUser) -> AuthState {
+        .signedIn(email: user.profile?.email ?? L.tr("Google Account", language: .system))
+    }
+
+    private func signedInUser() async throws -> GIDGoogleUser {
+        configureSignInIfPossible()
+
+        if let currentUser = GIDSignIn.sharedInstance.currentUser {
+            do {
+                return try await currentUser.refreshTokensIfNeeded()
+            } catch {
+                GIDSignIn.sharedInstance.signOut()
+            }
+        }
+
+        guard clientID != nil, hasCallbackURLScheme else {
+            throw NSError(
+                domain: "GoogleCalendarService",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: L.tr("No signed-in Google user.", language: .system)]
+            )
+        }
+
+        do {
+            let restoredUser = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
+            return try await restoredUser.refreshTokensIfNeeded()
+        } catch {
+            GIDSignIn.sharedInstance.signOut()
+            throw NSError(
+                domain: "GoogleCalendarService",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: L.tr("No signed-in Google user.", language: .system)]
+            )
+        }
+    }
+
+    private func discardStaleSessionIfNeeded() async {
+        guard let currentUser = GIDSignIn.sharedInstance.currentUser else { return }
+
+        do {
+            _ = try await currentUser.refreshTokensIfNeeded()
+        } catch {
+            GIDSignIn.sharedInstance.signOut()
+        }
     }
 
     func fetchCalendars() async throws -> [CalendarSource] {
@@ -332,7 +381,7 @@ final class GoogleCalendarService {
         alertOption: EventAlertOption = .none,
         visibility: EventVisibilityOption = .default,
         availability: EventAvailabilityOption = .busy
-    ) async throws {
+    ) async throws -> CalendarEvent {
         let payload = GoogleCreateEventRequest(
             summary: title.isEmpty ? L.tr("Untitled", language: .system) : title,
             location: location,
@@ -340,7 +389,7 @@ final class GoogleCalendarService {
             start: .init(date: isAllDay ? DateFormatter.googleCalendarDay.string(from: startDate) : nil,
                          dateTime: isAllDay ? nil : makeGoogleDateTimeFormatter().string(from: startDate)),
             end: .init(
-                date: isAllDay ? DateFormatter.googleCalendarDay.string(from: allDayEndDate(from: startDate, endDate: endDate)) : nil,
+                date: isAllDay ? DateFormatter.googleCalendarDay.string(from: max(endDate, startDate.addingTimeInterval(86400))) : nil,
                 dateTime: isAllDay ? nil : makeGoogleDateTimeFormatter().string(from: max(endDate, startDate.addingTimeInterval(60)))
             ),
             recurrence: recurrence(for: repeatOption),
@@ -352,12 +401,14 @@ final class GoogleCalendarService {
         )
 
         let body = try JSONEncoder().encode(payload)
-        _ = try await authorizedRequest(
+        let data = try await authorizedRequest(
             path: "/calendars/\(calendarID.urlPathEncoded)/events",
             queryItems: attachmentURL == nil ? [] : [URLQueryItem(name: "supportsAttachments", value: "true")],
             method: "POST",
             body: body
         )
+        let item = try JSONDecoder().decode(GoogleCalendarEventItem.self, from: data)
+        return try calendarEvent(from: item, calendarID: calendarID)
     }
 
     func updateEvent(
@@ -386,7 +437,7 @@ final class GoogleCalendarService {
             start: .init(date: isAllDay ? DateFormatter.googleCalendarDay.string(from: startDate) : nil,
                          dateTime: isAllDay ? nil : makeGoogleDateTimeFormatter().string(from: startDate)),
             end: .init(
-                date: isAllDay ? DateFormatter.googleCalendarDay.string(from: allDayEndDate(from: startDate, endDate: endDate)) : nil,
+                date: isAllDay ? DateFormatter.googleCalendarDay.string(from: max(endDate, startDate.addingTimeInterval(86400))) : nil,
                 dateTime: isAllDay ? nil : makeGoogleDateTimeFormatter().string(from: max(endDate, startDate.addingTimeInterval(60)))
             ),
             recurrence: recurrence(for: repeatOption),
@@ -426,7 +477,7 @@ final class GoogleCalendarService {
         isAllDay: Bool,
         calendarID: String,
         notes: String? = nil
-    ) async throws {
+    ) async throws -> CalendarEvent {
         guard let taskListID = taskListID(from: calendarID) else {
             throw NSError(domain: "GoogleCalendarService", code: 5, userInfo: [NSLocalizedDescriptionKey: L.tr("Google task could not be found.", language: .system)])
         }
@@ -439,13 +490,15 @@ final class GoogleCalendarService {
         )
         let body = try JSONEncoder().encode(payload)
 
-        _ = try await authorizedRequest(
+        let data = try await authorizedRequest(
             baseURLString: "https://tasks.googleapis.com/tasks/v1",
             path: "/lists/\(taskListID.urlPathEncoded)/tasks",
             queryItems: [],
             method: "POST",
             body: body
         )
+        let item = try JSONDecoder().decode(GoogleTaskItem.self, from: data)
+        return try taskEvent(from: item, taskListID: taskListID, calendarID: calendarID)
     }
 
     func updateTask(
@@ -510,10 +563,7 @@ final class GoogleCalendarService {
         method: String = "GET",
         body: Data? = nil
     ) async throws -> Data {
-        guard let currentUser = GIDSignIn.sharedInstance.currentUser else {
-            throw NSError(domain: "GoogleCalendarService", code: 2, userInfo: [NSLocalizedDescriptionKey: L.tr("No signed-in Google user.", language: .system)])
-        }
-
+        let currentUser = try await signedInUser()
         let user = try await currentUser.refreshTokensIfNeeded()
 
         var components = URLComponents(string: "\(baseURLString)\(path)")!
@@ -521,6 +571,7 @@ final class GoogleCalendarService {
 
         var request = URLRequest(url: components.url!)
         request.httpMethod = method
+        request.timeoutInterval = 20
         request.setValue("Bearer \(user.accessToken.tokenString)", forHTTPHeaderField: "Authorization")
         if let body {
             request.httpBody = body
@@ -532,7 +583,10 @@ final class GoogleCalendarService {
             throw NSError(
                 domain: "GoogleCalendarService",
                 code: 3,
-                userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? L.tr("Google Calendar API request failed.", language: .system)]
+                userInfo: [
+                    NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? L.tr("Google Calendar API request failed.", language: .system),
+                    "httpStatusCode": (response as? HTTPURLResponse)?.statusCode ?? -1
+                ]
             )
         }
 
@@ -566,6 +620,67 @@ final class GoogleCalendarService {
     private func googleTaskDueString(from date: Date, isAllDay: Bool) -> String {
         let dueDate = isAllDay ? Calendar.current.startOfDay(for: date) : date
         return makeGoogleDateTimeFormatter().string(from: dueDate)
+    }
+
+    private func calendarEvent(from item: GoogleCalendarEventItem, calendarID: String) throws -> CalendarEvent {
+        guard let start = item.start.resolvedDate,
+              let end = item.end.resolvedDate else {
+            throw NSError(
+                domain: "GoogleCalendarService",
+                code: 6,
+                userInfo: [NSLocalizedDescriptionKey: L.tr("Google Calendar event response was missing dates.", language: .system)]
+            )
+        }
+
+        return CalendarEvent(
+            id: item.id,
+            calendarID: calendarID,
+            recurringEventID: item.recurringEventId,
+            kind: .event,
+            title: item.summary?.isEmpty == false ? item.summary! : L.tr("Untitled", language: .system),
+            location: item.location,
+            notes: item.description,
+            startDate: start,
+            endDate: end,
+            isAllDay: item.start.date != nil,
+            repeatOption: item.recurrence?.first.flatMap(Self.repeatOption) ?? .never,
+            invitees: item.attendees?.compactMap(\.email) ?? [],
+            attachmentURL: item.attachments?.first?.fileUrl,
+            alertOption: EventAlertOption.option(for: item.reminders?.firstOverrideMinutes.map { TimeInterval(-$0 * 60) }),
+            visibility: item.visibility.flatMap(EventVisibilityOption.googleValue) ?? .default,
+            availability: item.transparency == "transparent" ? .free : .busy
+        )
+    }
+
+    private func taskEvent(from item: GoogleTaskItem, taskListID: String, calendarID: String) throws -> CalendarEvent {
+        guard item.deleted != true,
+              let dueDate = item.dueDate else {
+            throw NSError(
+                domain: "GoogleCalendarService",
+                code: 7,
+                userInfo: [NSLocalizedDescriptionKey: L.tr("Google Tasks response was missing a due date.", language: .system)]
+            )
+        }
+
+        let isAllDay = !item.dueIncludesTime
+        let startDate = isAllDay ? Calendar.current.startOfDay(for: dueDate) : dueDate
+        let endDate = isAllDay
+            ? Calendar.current.date(byAdding: .day, value: 1, to: startDate) ?? startDate.addingTimeInterval(86400)
+            : dueDate.addingTimeInterval(60 * 30)
+
+        return CalendarEvent(
+            id: "google-task:\(taskListID):\(item.id)",
+            calendarID: calendarID,
+            recurringEventID: nil,
+            kind: .reminder,
+            title: item.title?.isEmpty == false ? item.title! : L.tr("Untitled Reminder", language: .system),
+            location: nil,
+            notes: item.notes,
+            startDate: startDate,
+            endDate: endDate,
+            isAllDay: isAllDay,
+            isCompleted: item.status == "completed"
+        )
     }
 
     private var clientID: String? {
@@ -623,14 +738,6 @@ final class GoogleCalendarService {
         }
 
         return value
-    }
-
-    private func allDayEndDate(from startDate: Date, endDate: Date) -> Date {
-        let calendar = Calendar(identifier: .gregorian)
-        let startDay = calendar.startOfDay(for: startDate)
-        let clampedEnd = max(endDate, startDate)
-        let daySpan = calendar.dateComponents([.day], from: startDay, to: calendar.startOfDay(for: clampedEnd)).day ?? 0
-        return calendar.date(byAdding: .day, value: max(daySpan + 1, 1), to: startDay) ?? startDay.addingTimeInterval(86400)
     }
 
     private func makeGoogleDateTimeFormatter() -> ISO8601DateFormatter {
