@@ -38,7 +38,8 @@ final class GoogleCalendarService {
         do {
             _ = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
         } catch {
-            // Ignore restore failures and stay signed out.
+            // Clear any stale local session so the next interactive sign-in starts cleanly.
+            GIDSignIn.sharedInstance.signOut()
         }
     }
 
@@ -60,6 +61,7 @@ final class GoogleCalendarService {
         }
 
         configureSignInIfPossible()
+        await discardStaleSessionIfNeeded()
         let result = try await GIDSignIn.sharedInstance.signIn(
             withPresenting: presentingViewController,
             hint: nil,
@@ -85,7 +87,11 @@ final class GoogleCalendarService {
         configureSignInIfPossible()
 
         if let currentUser = GIDSignIn.sharedInstance.currentUser {
-            return currentUser
+            do {
+                return try await currentUser.refreshTokensIfNeeded()
+            } catch {
+                GIDSignIn.sharedInstance.signOut()
+            }
         }
 
         guard clientID != nil, hasCallbackURLScheme else {
@@ -98,13 +104,24 @@ final class GoogleCalendarService {
 
         do {
             let restoredUser = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
-            return restoredUser
+            return try await restoredUser.refreshTokensIfNeeded()
         } catch {
+            GIDSignIn.sharedInstance.signOut()
             throw NSError(
                 domain: "GoogleCalendarService",
                 code: 2,
                 userInfo: [NSLocalizedDescriptionKey: L.tr("No signed-in Google user.", language: .system)]
             )
+        }
+    }
+
+    private func discardStaleSessionIfNeeded() async {
+        guard let currentUser = GIDSignIn.sharedInstance.currentUser else { return }
+
+        do {
+            _ = try await currentUser.refreshTokensIfNeeded()
+        } catch {
+            GIDSignIn.sharedInstance.signOut()
         }
     }
 
