@@ -62,6 +62,15 @@ struct CalendarRootView: View {
                     await viewModel.refreshAfterReturningToForeground()
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .googleSignInCallbackHandled)) { _ in
+                // Google Sign-In normally resumes the awaiting signIn call itself.
+                // Also refresh here so the SwiftUI state is updated when iOS
+                // delivers the callback after the scene has already become active.
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    await viewModel.completeGoogleSignInFromCallback()
+                }
+            }
             .sheet(item: $selectedDay) { day in
                 DayScheduleView(
                     date: day.date,
