@@ -290,6 +290,18 @@ final class CalendarViewModel {
         googleCalendarService.signOut()
         googleAuthState = googleCalendarService.authState
 
+        // Remove Google data from both memory and the persisted offline cache.
+        // Otherwise a later launch can show old Google calendars even though the
+        // account has been disconnected.
+        let googleCalendarIDs = Set(
+            calendarSources
+                .filter { $0.provider == .google }
+                .map(\.id)
+        )
+        calendarSources.removeAll { $0.provider == .google }
+        events.removeAll { googleCalendarIDs.contains($0.calendarID) }
+        loadedEventIntervals[.google] = nil
+
         if settings.isICloudSyncEnabled && accessState == .granted {
             selectedProvider = .iCloud
             await reloadCalendarsAndEvents()
@@ -300,6 +312,8 @@ final class CalendarViewModel {
             events = []
             loadState = .idle
         }
+
+        persistStoredState()
     }
 
     func refreshICloudNow() async {
