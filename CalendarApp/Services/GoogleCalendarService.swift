@@ -10,7 +10,8 @@ final class GoogleCalendarService {
         case unavailable(String)
     }
 
-    private let calendarScope = "https://www.googleapis.com/auth/calendar"
+    private let calendarListScope = "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+    private let calendarEventsScope = "https://www.googleapis.com/auth/calendar.events"
     private let tasksScope = "https://www.googleapis.com/auth/tasks"
     private let googleTaskListIDPrefix = "google-tasks:"
 
@@ -65,7 +66,7 @@ final class GoogleCalendarService {
         let result = try await GIDSignIn.sharedInstance.signIn(
             withPresenting: presentingViewController,
             hint: nil,
-            additionalScopes: [calendarScope, tasksScope]
+            additionalScopes: [calendarListScope, calendarEventsScope, tasksScope]
         )
         return authState(for: result.user)
     }
