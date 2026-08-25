@@ -87,7 +87,13 @@ final class CalendarViewModel {
     }
 
     var shouldShowCalendarUI: Bool {
-        hasConnectedCalendars || (settings.isICloudSyncEnabled && accessState == .granted)
+        // A successful Google sign-in is enough to leave the connection screen.
+        // Calendar loading can still fail independently (for example while API
+        // access is being configured), and keeping the user on that screen made
+        // a completed sign-in look as though it had never happened.
+        hasConnectedCalendars
+            || googleAuthState.isSignedIn
+            || (settings.isICloudSyncEnabled && accessState == .granted)
     }
 
     var displayCalendar: Calendar {
@@ -348,6 +354,9 @@ final class CalendarViewModel {
 
     func refreshAfterReturningToForeground() async {
         guard isInitialLoadComplete else { return }
+        // Returning from the Google authorization sheet also makes the scene
+        // active. Do not race its in-progress callback by attempting a restore.
+        guard !isGoogleSyncInProgress else { return }
 
         refreshCalendarAccessState()
         await googleCalendarService.restorePreviousSignInIfPossible()
@@ -362,6 +371,20 @@ final class CalendarViewModel {
         if settings.isICloudSyncEnabled && accessState == .granted {
             startObservingStoreChangesIfNeeded()
         }
+    }
+
+    func completeGoogleSignInFromCallback() async {
+        // Give GoogleSignIn a moment to persist the user after handling the URL.
+        // This path covers cases where the SDK completion arrives after SwiftUI
+        // has already processed the scene activation.
+        await googleCalendarService.restorePreviousSignInIfPossible()
+        googleAuthState = googleCalendarService.authState
+
+        guard googleAuthState.isSignedIn else { return }
+
+        isGoogleSyncInProgress = false
+        selectedProvider = .google
+        await reloadGoogleCalendarsAndEvents()
     }
 
     func createEvent(
