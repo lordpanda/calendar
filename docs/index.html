@@ -6,14 +6,14 @@
   <title>Calendar App</title>
   <style>
     :root {
-      --bg: #f6f2e8;
-      --surface: rgba(255, 255, 255, 0.82);
-      --text: #1f1a17;
-      --muted: #6e6258;
-      --accent: #d85f3b;
-      --accent-dark: #8a3720;
-      --border: rgba(31, 26, 23, 0.12);
-      --shadow: 0 24px 60px rgba(93, 63, 42, 0.12);
+      --bg: #f5f5f7;
+      --surface: rgba(255, 255, 255, 0.78);
+      --text: #17171b;
+      --muted: #6e6e73;
+      --accent: #00a995;
+      --accent-bright: #00c8b3;
+      --border: rgba(60, 60, 67, 0.13);
+      --shadow: 0 24px 70px rgba(24, 24, 28, 0.11);
     }
 
     * {
@@ -22,19 +22,19 @@
 
     body {
       margin: 0;
-      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(216, 95, 59, 0.16), transparent 32%),
-        radial-gradient(circle at right center, rgba(204, 168, 122, 0.18), transparent 28%),
-        linear-gradient(180deg, #fbf8f1 0%, var(--bg) 100%);
+        radial-gradient(circle at 12% 8%, rgba(0, 200, 179, 0.16), transparent 24%),
+        radial-gradient(circle at 94% 24%, rgba(83, 149, 255, 0.13), transparent 22%),
+        linear-gradient(180deg, #fff 0%, var(--bg) 100%);
       min-height: 100vh;
     }
 
     .wrap {
-      max-width: 920px;
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 48px 20px 80px;
+      padding: 24px 20px 72px;
     }
 
     .hero,
@@ -42,21 +42,26 @@
       background: var(--surface);
       backdrop-filter: blur(10px);
       border: 1px solid var(--border);
-      border-radius: 28px;
+      border-radius: 30px;
       box-shadow: var(--shadow);
     }
 
     .hero {
-      padding: 40px;
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 36px;
+      align-items: center;
+      padding: 48px;
       margin-bottom: 24px;
     }
 
     .eyebrow {
       margin: 0 0 12px;
-      font-size: 0.82rem;
-      letter-spacing: 0.18em;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--accent-dark);
+      color: var(--accent);
     }
 
     h1,
@@ -68,6 +73,7 @@
     h1 {
       font-size: clamp(2.6rem, 5vw, 4.6rem);
       max-width: 9ch;
+      letter-spacing: -0.055em;
     }
 
     h2 {
@@ -83,18 +89,18 @@
 
     .lead {
       max-width: 58ch;
-      color: var(--text);
+      color: #4a4a50;
       font-size: 1.12rem;
     }
 
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 24px;
+      gap: 16px;
     }
 
     .card {
-      padding: 28px;
+      padding: 26px;
     }
 
     ul {
@@ -127,13 +133,13 @@
       justify-content: center;
       padding: 14px 18px;
       border-radius: 999px;
-      background: var(--accent);
-      color: #fffaf7;
+      background: linear-gradient(135deg, var(--accent-bright), var(--accent));
+      color: white;
       font-weight: 700;
     }
 
     a.link {
-      color: var(--accent-dark);
+      color: var(--accent);
       font-weight: 700;
     }
 
@@ -143,10 +149,36 @@
     }
 
     footer {
-      margin-top: 24px;
+      margin: 22px 4px 0;
       font-size: 0.95rem;
       color: var(--muted);
     }
+
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 22px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 720; letter-spacing: -0.02em; }
+    .brand-mark { width: 30px; height: 30px; border-radius: 10px; background: linear-gradient(145deg, var(--accent-bright), #4cd8cb); box-shadow: 0 6px 14px rgba(0, 200, 179, .28); position: relative; }
+    .brand-mark::before { content: ""; position: absolute; width: 12px; height: 2px; border-radius: 2px; background: white; left: 9px; top: 10px; box-shadow: 0 5px 0 white, 0 10px 0 white; }
+    .topbar a { color: var(--muted); font-size: .9rem; text-decoration: none; }
+    .calendar-preview { width: min(100%, 300px); justify-self: center; overflow: hidden; border-radius: 18px; background: #fff; box-shadow: 0 18px 32px rgba(22, 22, 28, .12); }
+    .calendar-header { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; padding: 17px 14px 16px; }
+    .year-control, .header-actions { display: inline-flex; align-items: center; gap: 11px; width: fit-content; padding: 8px 10px; border-radius: 999px; background: #fff; box-shadow: 0 9px 20px rgba(25,25,30,.10); font-size: .62rem; font-weight: 650; }
+    .header-actions { justify-self: end; }
+    .search-icon { position: relative; display: block; width: 14px; height: 14px; border: 2px solid #17171b; border-radius: 50%; }
+    .search-icon::after { content: ""; position: absolute; width: 7px; height: 2px; right: -5px; bottom: -3px; border-radius: 2px; background: #17171b; transform: rotate(45deg); }
+    .menu-icon { display: grid; gap: 3px; width: 17px; }
+    .menu-icon span { display: block; height: 2px; border-radius: 2px; background: #17171b; }
+    .calendar-title { font-size: .9rem; font-weight: 720; letter-spacing: -.035em; }
+    .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 0 4px 7px; text-align: center; font-size: .58rem; font-weight: 650; }
+    .month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid #e4e4e6; border-left: 1px solid #e4e4e6; }
+    .day { position: relative; min-width: 0; min-height: 62px; padding: 5px 2px; border-right: 1px solid #e4e4e6; border-bottom: 1px solid #e4e4e6; color: #18181b; font-size: .58rem; text-align: center; }
+    .day.muted { color: #c4c4c8; }
+    .day .date { display: inline-flex; width: 18px; height: 18px; align-items: center; justify-content: center; border-radius: 50%; }
+    .day.today .date { background: var(--accent-bright); color: #fff; font-weight: 700; }
+    .event { overflow: hidden; display: block; min-width: 0; width: 100%; margin-top: 3px; padding: 3px 2px; border-radius: 4px; color: white; font-size: .42rem; line-height: 1.1; font-weight: 650; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+    .violet { background: #8247f5; } .pink { background: #fa1c9c; } .green { background: #2ccc75; } .coral { background: #ff645b; } .blue { background: #55c9ef; }
+    .preview-bottom { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px 15px; }
+    .today-button, .plus-button { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #fff; box-shadow: 0 10px 24px rgba(25,25,30,.12); }
+    .today-button { padding: 9px 14px; font-size: .66rem; font-weight: 650; } .plus-button { width: 34px; height: 34px; font-size: 1.5rem; font-weight: 300; }
 
     @media (max-width: 640px) {
       .hero,
@@ -155,26 +187,44 @@
       }
 
       .hero {
-        padding: 28px;
+        grid-template-columns: 1fr;
+        padding: 30px;
       }
 
       .card {
         padding: 22px;
       }
+      .calendar-preview { width: min(100%, 300px); }
     }
   </style>
 </head>
 <body>
   <main class="wrap">
+    <nav class="topbar">
+      <div class="brand"><span class="brand-mark"></span>Calendar</div>
+      <a href="./privacy.html">Privacy</a>
+    </nav>
     <section class="hero">
-      <p class="eyebrow">Calendar for iPhone</p>
-      <h1>One calendar that keeps iCloud and Google in the same place.</h1>
-      <p class="lead">
-        Calendar App is an iOS calendar that combines local calendars with Google Calendar and Google Tasks so you can manage schedules, reminders, and daily plans from a single interface.
-      </p>
-      <div class="actions">
-        <a class="button" href="./privacy.html">Privacy Policy</a>
-        <a class="link" href="mailto:panda@example.com">Contact Support</a>
+      <div>
+        <p class="eyebrow">Calendar for iPhone</p>
+        <h1>Your day, beautifully in sync.</h1>
+        <p class="lead">Calendar brings iCloud, Google Calendar, and Google Tasks together in one calm, focused view of your day.</p>
+        <div class="actions">
+          <a class="button" href="./privacy.html">Privacy Policy</a>
+        </div>
+      </div>
+      <div class="calendar-preview" aria-label="Calendar app month view preview">
+        <div class="calendar-header"><span class="year-control">‹&nbsp; 2026</span><span class="calendar-title">August</span><span class="header-actions"><i class="search-icon" aria-hidden="true"></i><i class="menu-icon" aria-hidden="true"><span></span><span></span><span></span></i></span></div>
+        <div class="week"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+        <div class="month-grid">
+          <div class="day muted"><span class="date">26</span><span class="event violet">Roll Cake</span><span class="event violet">Gelato</span></div><div class="day muted"><span class="date">27</span><span class="event violet">Basque</span></div><div class="day muted"><span class="date">28</span><span class="event pink">Tiramisu</span></div><div class="day muted"><span class="date">29</span><span class="event pink">Madeleine</span></div><div class="day muted"><span class="date">30</span><span class="event pink">Donut</span></div><div class="day muted"><span class="date">31</span><span class="event violet">Roll Cake</span></div><div class="day"><span class="date">1</span><span class="event violet">Croissant</span></div>
+          <div class="day"><span class="date">2</span><span class="event violet">Gelato</span></div><div class="day"><span class="date">3</span></div><div class="day"><span class="date">4</span><span class="event green">Pudding</span></div><div class="day"><span class="date">5</span><span class="event pink">Madeleine</span><span class="event violet">Parfait</span></div><div class="day"><span class="date">6</span></div><div class="day"><span class="date">7</span><span class="event violet">Donut</span></div><div class="day"><span class="date">8</span><span class="event violet">Tiramisu</span></div>
+          <div class="day"><span class="date">9</span><span class="event violet">Pudding</span></div><div class="day"><span class="date">10</span><span class="event pink">Cheesecake</span></div><div class="day"><span class="date">11</span><span class="event green">Scone</span><span class="event violet">Parfait</span></div><div class="day"><span class="date">12</span></div><div class="day"><span class="date">13</span><span class="event violet">Mont Blanc</span></div><div class="day"><span class="date">14</span><span class="event violet">Cheesecake</span></div><div class="day"><span class="date">15</span><span class="event pink">Tiramisu</span></div>
+          <div class="day"><span class="date">16</span><span class="event violet">Parfait</span></div><div class="day"><span class="date">17</span><span class="event coral">Croissant</span></div><div class="day"><span class="date">18</span><span class="event pink">Macaron</span></div><div class="day"><span class="date">19</span><span class="event violet">Scone</span></div><div class="day"><span class="date">20</span><span class="event blue">Croissant</span></div><div class="day"><span class="date">21</span><span class="event pink">Croissant</span><span class="event violet">Brownie</span></div><div class="day"><span class="date">22</span><span class="event violet">Canelle</span></div>
+          <div class="day"><span class="date">23</span><span class="event violet">Tiramisu</span></div><div class="day"><span class="date">24</span><span class="event violet">Macaron</span><span class="event violet">Tiramisu</span></div><div class="day today"><span class="date">25</span></div><div class="day"><span class="date">26</span><span class="event pink">Croissant</span><span class="event pink">Tiramisu</span></div><div class="day"><span class="date">27</span></div><div class="day"><span class="date">28</span><span class="event violet">Donut</span></div><div class="day"><span class="date">29</span><span class="event violet">Macaron</span></div>
+          <div class="day"><span class="date">30</span><span class="event violet">Madeleine</span></div><div class="day"><span class="date">31</span><span class="event violet">Tiramisu</span></div><div class="day muted"><span class="date">1</span></div><div class="day muted"><span class="date">2</span></div><div class="day muted"><span class="date">3</span><span class="event violet">Donut</span></div><div class="day muted"><span class="date">4</span></div><div class="day muted"><span class="date">5</span><span class="event violet">Waffle</span></div>
+        </div>
+        <div class="preview-bottom"><span class="today-button">Today</span><span class="plus-button">+</span></div>
       </div>
     </section>
 
@@ -213,9 +263,6 @@
       </article>
     </section>
 
-    <footer>
-      Support contact: <a class="link" href="mailto:panda@example.com">panda@example.com</a>
-    </footer>
   </main>
 </body>
 </html>
