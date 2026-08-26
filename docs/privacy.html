@@ -116,17 +116,22 @@
 
       <h2>Data sharing</h2>
       <p>
-        Calendar App does not sell Google user data. Google user data is not shared with third parties except as necessary to provide the requested Google Calendar or Google Tasks functionality through Google's APIs.
+        Calendar App does not sell or share Google user data with third parties. The app sends data only to Google's Calendar and Tasks APIs when needed to provide an action requested by the user.
       </p>
 
       <h2>Data storage</h2>
       <p>
-        Authentication information and app state may be stored locally on the user's device to keep the user signed in and preserve preferences. Calendar and task data is used only for app functionality requested by the user.
+        To provide offline display and preserve preferences, the app stores a local cache of calendar sources, event and task details, and app settings in UserDefaults within the app's iOS container. The Google Sign-In SDK stores the sign-in state and credentials in the iOS Keychain. The local Google calendar and task cache is removed when the user disconnects their Google account in the app. Calendar and task data is used only to provide the functionality requested by the user.
+      </p>
+
+      <h2>How we protect Google user data</h2>
+      <p>
+        We use security procedures designed to protect the confidentiality of Google user data. The app communicates with Google APIs only over encrypted HTTPS/TLS connections. Google account access is authorized through Google OAuth, and the Google Sign-In SDK stores credentials in the iOS Keychain. Locally cached calendar and task data is kept in the app's iOS sandbox, which is isolated from other apps. The app does not apply separate application-level encryption to this local cache, and it does not transmit Google Calendar or Google Tasks data to our own servers or to third parties.
       </p>
 
       <h2>User choices</h2>
       <ul>
-        <li>Users can disconnect their Google account from within the app.</li>
+        <li>Users can disconnect their Google account from within the app; this removes the locally cached Google calendar and task data.</li>
         <li>Users can revoke the app's access from their Google account permissions settings.</li>
         <li>Users can remove the app from their device at any time.</li>
       </ul>
