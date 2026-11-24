@@ -136,8 +136,7 @@ private struct HeaderView: View {
                     .accessibilityLabel(L.tr("Search", language: language))
 
                     Button(action: onMenu) {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 17, weight: .regular))
+                        HamburgerIcon()
                     }
                     .buttonStyle(.plain)
                     .frame(width: 36, height: 44)
@@ -149,6 +148,22 @@ private struct HeaderView: View {
                 .glassCapsule(horizontal: 8, vertical: 0)
             }
         }
+    }
+}
+
+private struct HamburgerIcon: View {
+    private let lineWidth: CGFloat = 18
+    private let lineHeight: CGFloat = 2
+    private let spacing: CGFloat = 4
+
+    var body: some View {
+        VStack(spacing: spacing) {
+            ForEach(0..<3, id: \.self) { _ in
+                Capsule()
+                    .frame(width: lineWidth, height: lineHeight)
+            }
+        }
+        .frame(width: lineWidth, height: lineHeight * 3 + spacing * 2)
     }
 }
 
@@ -172,8 +187,7 @@ private struct YearOverviewHeaderControls: View {
                 .accessibilityLabel(L.tr("Search", language: language))
 
                 Button(action: onMenu) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 17, weight: .regular))
+                    HamburgerIcon()
                 }
                 .buttonStyle(.plain)
                 .frame(width: 36, height: 44)
