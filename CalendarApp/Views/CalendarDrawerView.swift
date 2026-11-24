@@ -11,6 +11,18 @@ struct CalendarDrawerView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    NavigationLink {
+                        CalendarSettingsView(
+                            viewModel: viewModel,
+                            onConnectGoogle: onConnectGoogle
+                        )
+                    } label: {
+                        Label(L.tr("Settings", language: language), systemImage: "gearshape")
+                    }
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                }
+
                 if viewModel.calendarSources.isEmpty {
                     Section {
                         VStack(alignment: .leading, spacing: 8) {
@@ -67,18 +79,6 @@ struct CalendarDrawerView: View {
                     } footer: {
                         Text(L.tr("Drag to reorder. Hidden calendars are excluded from the new-event calendar choices.", language: language))
                     }
-                }
-
-                Section {
-                    NavigationLink {
-                        CalendarSettingsView(
-                            viewModel: viewModel,
-                            onConnectGoogle: onConnectGoogle
-                        )
-                    } label: {
-                        Label(L.tr("Settings", language: language), systemImage: "gearshape")
-                    }
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 }
             }
             .contentMargins(.top, 4, for: .scrollContent)
