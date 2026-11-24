@@ -38,6 +38,7 @@
 "Connected to local calendars through EventKit." = "Connected to Apple calendars and reminders on this device.";
 "Couldn't Save" = "Couldn't Save";
 "Custom Color" = "Custom Color";
+"Other Calendar Colors" = "Other Calendar Colors";
 "Custom Repeat" = "Custom Repeat";
 "Custom..." = "Custom...";
 "Day" = "Day";

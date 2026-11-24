@@ -436,6 +436,42 @@ struct CalendarEditView: View {
                         }
                         .padding(.vertical, 6)
 
+                        if !otherCalendars.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(L.tr("Other Calendar Colors", language: language))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+
+                                LazyVGrid(columns: columns, spacing: 14) {
+                                    ForEach(otherCalendars) { otherCalendar in
+                                        Button {
+                                            let hex = displayedColorHex(for: otherCalendar)
+                                            viewModel.setCalendarColorOverride(calendarID: calendarID, colorHex: hex)
+                                            customColor = Color(hex: hex) ?? .accentColor
+                                        } label: {
+                                            Circle()
+                                                .fill(Color(hex: displayedColorHex(for: otherCalendar)) ?? .accentColor)
+                                                .frame(width: 36, height: 36)
+                                                .overlay {
+                                                    Circle()
+                                                        .stroke(selectedColorHex == displayedColorHex(for: otherCalendar) ? Color.primary : Color.clear, lineWidth: 2)
+                                                }
+                                                .overlay {
+                                                    if selectedColorHex == displayedColorHex(for: otherCalendar) {
+                                                        Image(systemName: "checkmark")
+                                                            .font(.system(size: 13, weight: .bold))
+                                                            .foregroundStyle(.white)
+                                                    }
+                                                }
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel(L.tr("Select %@", language: language, otherCalendar.displayTitle))
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 6)
+                        }
+
                         ColorPicker(L.tr("Custom Color", language: language), selection: Binding(
                             get: { customColor },
                             set: { color in
@@ -482,6 +518,20 @@ struct CalendarEditView: View {
 
     private var calendar: CalendarSource? {
         viewModel.calendarSource(id: calendarID)
+    }
+
+    private var otherCalendars: [CalendarSource] {
+        var seenColors = Set<String>()
+        return viewModel.orderedCalendarSources.filter { calendar in
+            calendar.id != calendarID
+                && calendar.isVisible
+                && calendar.kind == .event
+                && seenColors.insert(displayedColorHex(for: calendar)).inserted
+        }
+    }
+
+    private func displayedColorHex(for calendar: CalendarSource) -> String {
+        (calendar.colorOverrideHex ?? calendar.colorHex).uppercased()
     }
 
     private var selectedColorHex: String? {

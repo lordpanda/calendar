@@ -37,6 +37,7 @@
 "Connected to local calendars through EventKit." = "현재 기기의 Apple 캘린더 및 미리 알림에 연결되었습니다.";
 "Couldn't Save" = "저장할 수 없음";
 "Custom Color" = "사용자 색상";
+"Other Calendar Colors" = "다른 캘린더 색상";
 "Custom Repeat" = "사용자 반복";
 "Custom..." = "사용자 설정...";
 "Day" = "일";
